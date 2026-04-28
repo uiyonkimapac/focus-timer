@@ -630,6 +630,80 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ── MOBILE / NARROW ── */
+@media (max-width: 760px) {
+  body { flex-direction: column; overflow-y: auto; }
+
+  .left-panel {
+    width: 100%;
+    min-height: auto;
+    padding: 14px 16px 18px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .app-logo { margin-bottom: 14px; gap: 8px; }
+  .mode-row { margin-bottom: 14px; }
+
+  .timer-section { margin-bottom: 12px; }
+  .ring-wrap { width: 170px; height: 170px; margin-bottom: 10px; }
+  .ring-wrap svg { width: 170px; height: 170px; }
+  .time-display { font-size: 36px; }
+  .time-label { font-size: 11px; }
+
+  .controls { gap: 14px; margin-bottom: 14px; }
+  .btn-play { width: 56px; height: 56px; font-size: 22px; }
+  .btn-ctrl { width: 38px; height: 38px; font-size: 16px; }
+
+  .session-row { margin-bottom: 12px; }
+  .stats-row { gap: 6px; margin-bottom: 12px; }
+  .stat-card { padding: 10px 6px; }
+  .stat-val { font-size: 18px; }
+
+  .motivate-text { display: none; }
+
+  /* main area takes the rest */
+  .main-area { flex: none; }
+
+  .tab-nav { padding: 0 12px; flex-wrap: wrap; gap: 4px; }
+  .tab-btn { padding: 12px 10px 10px; font-size: 12px; }
+  .btn-reset-data { padding: 6px 9px; font-size: 11px; }
+  .btn-save-main { padding: 6px 10px; font-size: 11px; }
+
+  .tasks-pane { padding: 16px 14px 12px; }
+  .task-scroll { padding: 0 14px 60px !important; }
+  .history-scroll { padding: 0 14px 60px !important; }
+  .panel-header { flex-wrap: wrap; gap: 8px; }
+
+  .add-row { flex-wrap: wrap; }
+  .task-inp { min-width: 0; }
+  .time-inp { width: 64px; }
+
+  .quick-times { gap: 4px; }
+  .qt-btn { padding: 5px 10px; font-size: 11px; }
+
+  .task-card { padding: 10px 11px; gap: 9px; }
+  .task-name { font-size: 13px; }
+  .time-badge { padding: 3px 8px; font-size: 11px; }
+  .btn-start-task { width: 28px; height: 28px; }
+  .btn-del { width: 24px; height: 24px; }
+  .drag-handle { width: 14px; font-size: 14px; }
+  /* on touch devices, drag-and-drop doesn't work — show a visual cue but
+     keep the handle smaller; long-press reorder would need extra JS */
+
+  .modal { width: 92vw; padding: 20px; }
+  .import-area { height: 110px; }
+
+  .sync-badge { font-size: 10px; padding: 4px 8px; }
+
+  .top-progress { height: 2px; }
+}
+
+@media (max-width: 380px) {
+  .tab-btn { font-size: 11px; padding: 10px 7px; }
+  .ring-wrap, .ring-wrap svg { width: 150px; height: 150px; }
+  .time-display { font-size: 32px; }
+}
 </style>
 </head>
 <body>
