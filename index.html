@@ -953,6 +953,8 @@ let syncPushTimer = null;   // debounce
 let mode = 'focus';
 let totalSec = 25*60, remaining = 25*60;
 let running = false, ticker = null;
+// wall-clock anchor — survives tab/app backgrounding on iOS, throttled tabs on desktop
+let tickAnchorMs = 0, tickAnchorRemaining = 0;
 let sessionsDone = 0, minsFocused = 0, sessionStartSecs = 0, elapsedSecs = 0;
 let tasks = [], history = [];
 let activeId = null;
@@ -1156,6 +1158,8 @@ function startTimer() {
   if (remaining <= 0) return;
   elapsedSecs = 0;
   running = true;
+  tickAnchorMs = Date.now();
+  tickAnchorRemaining = remaining;
   document.getElementById('btnPlay').innerHTML = '⏸';
   ticker = setInterval(tick, 1000);
 }
@@ -1184,25 +1188,34 @@ function pauseTimer() {
 }
 
 function tick() {
-  remaining--;
-  elapsedSecs++;
+  if (!running) return;
+  // Derive remaining from wall-clock so backgrounded tabs / sleep / iOS suspension
+  // don't cause drift — delta may be >1 if we've been frozen.
+  const elapsedSinceAnchor = Math.floor((Date.now() - tickAnchorMs) / 1000);
+  const newRemaining = Math.max(0, tickAnchorRemaining - elapsedSinceAnchor);
+  const delta = remaining - newRemaining;
+  if (delta <= 0) return; // sub-second tick, nothing to do
+  remaining = newRemaining;
+  elapsedSecs += delta;
 
-  // Every 60 ticks = 1 minute elapsed → update minsFocused live
-  if (elapsedSecs % 60 === 0) {
+  // Credit any whole minutes accumulated (delta can span many minutes after a long pause)
+  let creditedMinute = false;
+  while (elapsedSecs >= 60) {
     minsFocused++;
-    elapsedSecs = 0; // reset — we already credited this minute
-    const activeTask = tasks.find(x => x.id === activeId);
-    if (activeTask) {
-      activeTask.secsSpent = (activeTask.secsSpent || 0) + 60;
-    }
+    elapsedSecs -= 60;
+    const t = tasks.find(x => x.id === activeId);
+    if (t) t.secsSpent = (t.secsSpent || 0) + 60;
+    creditedMinute = true;
+  }
+  if (creditedMinute) {
     updateStats();
     saveAll();
   }
 
-  // update task's own countdown
+  // update task's own countdown by the same delta
   const activeTask = tasks.find(x => x.id === activeId);
   if (activeTask && !activeTask.done && activeTask.secsRemaining > 0) {
-    activeTask.secsRemaining--;
+    activeTask.secsRemaining = Math.max(0, activeTask.secsRemaining - delta);
   }
 
   updateDisplay();
@@ -1916,6 +1929,13 @@ renderTasks(); updateStats(); renderActivePill();
 renderClock();
 setInterval(renderDots, 2000);
 setInterval(saveAll, 30000); // auto-save every 30s
+
+// When the tab returns to the foreground after being hidden (iOS app-switch,
+// laptop sleep, throttled background tab), tick() reconciles against the
+// wall-clock anchor immediately — no waiting up to a second for the next interval.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && running) tick();
+});
 
 // Restore sync if a code was saved on this device
 (async () => {
