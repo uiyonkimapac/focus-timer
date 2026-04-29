@@ -1923,9 +1923,9 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 // loudness as finish ring (the benchmark, kept at 1.0). Multipliers come from the
 // more conservative of peak-match vs. 100ms-RMS-match against finish ring.
 const SOUNDS = {
-  start:  { src: 'sounds/Start.mp3',           volume: 0.80 },
+  start:  { src: 'sounds/Start.mp3',           volume: 0.60 },
   clap:   { src: 'sounds/clap.mp3',            volume: 0.58 },
-  punch:  { src: 'sounds/punch.mp3',           volume: 0.53 },
+  punch:  { src: 'sounds/punch.mp3',           volume: 0.40 },
   finish: { src: 'sounds/finish%20ring.mp3',   volume: 1.00 },
 };
 const _audioCache = {};
