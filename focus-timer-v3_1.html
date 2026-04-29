@@ -1166,6 +1166,7 @@ function startTimer() {
   tickAnchorRemaining = remaining;
   document.getElementById('btnPlay').innerHTML = '⏸';
   ticker = setInterval(tick, 1000);
+  playSound('start');
 }
 
 function flushElapsed() {
@@ -1919,6 +1920,7 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 // play() may reject before the user's first gesture (browser autoplay policy);
 // every trigger here happens after a click, so it's effectively always allowed.
 const SOUNDS = {
+  start:  'sounds/Start.mp3',
   clap:   'sounds/clap.mp3',
   punch:  'sounds/punch.mp3',
   finish: 'sounds/finish%20ring.mp3',
