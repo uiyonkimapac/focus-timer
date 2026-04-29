@@ -1919,19 +1919,23 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 // Short MP3s from /sounds; cached so rapid replays don't restart the network fetch.
 // play() may reject before the user's first gesture (browser autoplay policy);
 // every trigger here happens after a click, so it's effectively always allowed.
+// Per-sound volumes are normalized so each cue lands at roughly the same perceived
+// loudness as finish ring (the benchmark, kept at 1.0). Multipliers come from the
+// more conservative of peak-match vs. 100ms-RMS-match against finish ring.
 const SOUNDS = {
-  start:  'sounds/Start.mp3',
-  clap:   'sounds/clap.mp3',
-  punch:  'sounds/punch.mp3',
-  finish: 'sounds/finish%20ring.mp3',
+  start:  { src: 'sounds/Start.mp3',           volume: 0.80 },
+  clap:   { src: 'sounds/clap.mp3',            volume: 0.58 },
+  punch:  { src: 'sounds/punch.mp3',           volume: 0.53 },
+  finish: { src: 'sounds/finish%20ring.mp3',   volume: 1.00 },
 };
 const _audioCache = {};
 function playSound(name) {
   try {
-    const src = SOUNDS[name];
-    if (!src) return;
+    const cfg = SOUNDS[name];
+    if (!cfg) return;
     let a = _audioCache[name];
-    if (!a) { a = new Audio(src); a.preload = 'auto'; _audioCache[name] = a; }
+    if (!a) { a = new Audio(cfg.src); a.preload = 'auto'; _audioCache[name] = a; }
+    a.volume = cfg.volume;
     a.currentTime = 0;
     const p = a.play();
     if (p && typeof p.catch === 'function') p.catch(() => {});
