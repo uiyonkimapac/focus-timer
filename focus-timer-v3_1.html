@@ -1234,7 +1234,7 @@ function tick() {
     }
     updateStats();
     renderTasks();
-    playChime();
+    playSound('finish');
     saveAll();
     renderDots();
   }
@@ -1422,14 +1422,16 @@ function addTask(name, mins, source) {
     // select it and save immediately for single adds
     if (activeId === null) activeId = t.id;
     renderTasks(); updateStats(); saveAll();
+    playSound('clap');
   }
-  // for batch imports, caller handles render+save
+  // for batch imports, caller handles render+save (and stays silent)
 }
 
 function toggleDone(id) {
   const t = tasks.find(x=>x.id===id);
   if (!t) return;
   if (!t.done) {
+    playSound('punch');
     // Stop timer immediately, reset display to 00:00
     clearInterval(ticker); running = false;
     document.getElementById('btnPlay').innerHTML = '▶';
@@ -1912,18 +1914,26 @@ function dayLabel(ts) {
 }
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ── CHIME ──
-function playChime() {
+// ── SOUND ──
+// Short MP3s from /sounds; cached so rapid replays don't restart the network fetch.
+// play() may reject before the user's first gesture (browser autoplay policy);
+// every trigger here happens after a click, so it's effectively always allowed.
+const SOUNDS = {
+  clap:   'sounds/clap.mp3',
+  punch:  'sounds/punch.mp3',
+  finish: 'sounds/finish%20ring.mp3',
+};
+const _audioCache = {};
+function playSound(name) {
   try {
-    const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    [523,659,784,1047].forEach((f,i)=>{
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g);g.connect(ctx.destination);o.type='sine';o.frequency.value=f;
-      const t=ctx.currentTime+i*0.2;
-      g.gain.setValueAtTime(0.25,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);
-      o.start(t);o.stop(t+0.6);
-    });
-  }catch(e){}
+    const src = SOUNDS[name];
+    if (!src) return;
+    let a = _audioCache[name];
+    if (!a) { a = new Audio(src); a.preload = 'auto'; _audioCache[name] = a; }
+    a.currentTime = 0;
+    const p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch (e) {}
 }
 
 // ── INIT ──
