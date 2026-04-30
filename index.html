@@ -36,9 +36,18 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   overflow-x: hidden;
   overflow-y: auto;
+  -webkit-text-size-adjust: 100%;
+}
+button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
+.btn-add, .btn-import, .btn-small, .btn-edit, .btn-del,
+.btn-start-task, .qt-btn, .mode-btn, .tab-btn, .time-badge,
+.btn-cancel, .btn-confirm, .btn-save-main, .btn-save-confirm {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── LEFT PANEL ── */
@@ -51,6 +60,7 @@ body {
   border-right: 1px solid var(--border);
   background: var(--surface);
   min-height: 100vh;
+  min-height: 100dvh;
   height: fit-content;
 }
 .app-logo {
@@ -159,7 +169,89 @@ body {
 .s-dot.done { background: var(--accent); border-color: var(--accent); }
 .s-dot.current { background: var(--accent); border-color: var(--accent); animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.35)} }
-.stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* memo pad — sticky-note feel inside the dark left panel */
+.task-memo-section {
+  display: flex; flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 140px;
+  margin-bottom: 18px;
+}
+.task-memo-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text3);
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+}
+.task-memo-label .memo-name {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text2); text-transform: none; letter-spacing: 0;
+  font-weight: 400; font-size: 11px;
+  text-align: right;
+}
+.task-memo {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 110px;
+  background: #faf6ec;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 30%),
+    repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(192,57,43,0.10) 27px, rgba(192,57,43,0.10) 28px);
+  border: 1px solid rgba(0,0,0,0.18);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 28px;
+  color: #2a2c3a;
+  outline: none;
+  resize: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  box-shadow:
+    0 4px 14px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.55);
+  -webkit-appearance: none;
+  -webkit-overflow-scrolling: touch;
+}
+.task-memo::placeholder { color: #9ea3b0; font-style: italic; }
+.task-memo:focus {
+  border-color: rgba(192,57,43,0.55);
+  box-shadow:
+    0 4px 18px rgba(192,57,43,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.55);
+}
+.task-memo:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #efeadd;
+}
+
+/* edit (rename) button — same shape as delete */
+.btn-edit {
+  opacity: 0; background: none; border: none;
+  color: var(--text3); font-size: 12px; cursor: pointer;
+  padding: 2px 4px; transition: opacity 0.15s, color 0.15s; line-height: 1;
+}
+.task-card:hover .btn-edit { opacity: 1; }
+.btn-edit:hover { color: var(--accent); }
+
+/* inline rename input — replaces .task-name during edit */
+.task-name-edit {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  outline: none;
+  margin-bottom: 3px;
+}
 .motivate-text {
   margin-top: auto;
   margin-bottom: 60px;
@@ -690,8 +782,13 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   .task-name { font-size: 13px; }
   .time-badge { padding: 3px 8px; font-size: 11px; }
   .btn-start-task { width: 28px; height: 28px; }
-  .btn-del { width: 24px; height: 24px; }
+  .btn-del, .btn-edit { width: 28px; height: 28px; opacity: 1; padding: 4px; font-size: 13px; }
   .drag-handle { width: 14px; font-size: 14px; }
+
+  /* memo on mobile — flexible height, larger font to prevent iOS auto-zoom */
+  .task-memo-section { min-height: 96px; margin-bottom: 12px; }
+  .task-memo { font-size: 16px; line-height: 26px; min-height: 90px; }
+  .task-name-edit { font-size: 16px; }
   /* on touch devices, drag-and-drop doesn't work — show a visual cue but
      keep the handle smaller; long-press reorder would need extra JS */
 
@@ -815,6 +912,19 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
     <button class="btn-ctrl" title="Skip" onclick="skipSession()">⏭</button>
   </div>
   <div class="session-row" id="sessionDots"></div>
+
+  <div class="task-memo-section">
+    <div class="task-memo-label">
+      <span>Notes</span>
+      <span class="memo-name" id="memoTaskName"></span>
+    </div>
+    <textarea class="task-memo" id="taskMemo"
+      placeholder="Jot anything about this task — links, sub-steps, thoughts…"
+      maxlength="4000"
+      autocomplete="off" autocorrect="on" spellcheck="true"
+      disabled></textarea>
+  </div>
+
   <div class="stats-row">
     <div class="stat-card">
       <div class="stat-val" id="statSessions">0</div>
@@ -823,10 +933,6 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
     <div class="stat-card">
       <div class="stat-val" id="statDone">0</div>
       <div class="stat-lbl">Done Today</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val" id="statMins">0</div>
-      <div class="stat-lbl">Min Focused</div>
     </div>
   </div>
   <div class="motivate-text">
@@ -1333,7 +1439,6 @@ function updateStats() {
   document.getElementById('statSessions').textContent = tasks.filter(t=>!t.done).length;
   const todayDone = history.filter(h => isToday(h.completedAt)).length;
   document.getElementById('statDone').textContent = todayDone;
-  document.getElementById('statMins').textContent = minsFocused;
   document.getElementById('taskBadge').textContent = tasks.filter(t=>!t.done).length;
   document.getElementById('histBadge').textContent = history.length;
 }
@@ -1385,6 +1490,35 @@ function renderActivePill() {
     document.getElementById('activeName').textContent = 'No task selected';
     document.getElementById('activeTime').textContent = '';
   }
+  renderMemo();
+}
+
+// ── MEMO PAD ──
+let memoSaveTimer = null;
+function renderMemo() {
+  const ta = document.getElementById('taskMemo');
+  if (!ta) return;
+  const nameEl = document.getElementById('memoTaskName');
+  const t = tasks.find(x => x.id === activeId);
+  if (t && !t.done) {
+    // Don't clobber the textarea while the user is typing into it
+    if (document.activeElement !== ta) ta.value = t.notes || '';
+    ta.disabled = false;
+    ta.placeholder = 'Jot anything about this task — links, sub-steps, thoughts…';
+    if (nameEl) nameEl.textContent = t.name;
+  } else {
+    ta.value = '';
+    ta.disabled = true;
+    ta.placeholder = 'Select a task to take notes…';
+    if (nameEl) nameEl.textContent = '';
+  }
+}
+function onMemoInput() {
+  const t = tasks.find(x => x.id === activeId);
+  if (!t) return;
+  t.notes = document.getElementById('taskMemo').value;
+  clearTimeout(memoSaveTimer);
+  memoSaveTimer = setTimeout(saveAll, 400);
 }
 function renderActiveTime() {
   const t = tasks.find(x => x.id === activeId);
@@ -1413,7 +1547,8 @@ function addTask(name, mins, source) {
     id: Date.now()+Math.random(),
     name: n, mins: m, secsRemaining: m*60,
     done: false, sessions: 0, secsSpent: 0,
-    source: source||'manual', createdAt: Date.now()
+    source: source||'manual', createdAt: Date.now(),
+    notes: ''
   };
   tasks.push(t);
   if (!name) {
@@ -1422,7 +1557,7 @@ function addTask(name, mins, source) {
     document.getElementById('taskTime').value = quickMin+'m';
     // select it and save immediately for single adds
     if (activeId === null) activeId = t.id;
-    renderTasks(); updateStats(); saveAll();
+    renderTasks(); updateStats(); renderActivePill(); saveAll();
     playSound('clap');
   }
   // for batch imports, caller handles render+save (and stays silent)
@@ -1514,6 +1649,52 @@ function setTaskTime(id, mins) {
   renderTasks(); if(activeId===id) renderActivePill(); saveAll();
 }
 
+function renameTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  const card = document.querySelector(`.task-card[data-task-id="${id}"]`);
+  if (!card) return;
+  const nameEl = card.querySelector('.task-name');
+  if (!nameEl) return;
+  // Avoid double-binding if already editing
+  if (card.querySelector('.task-name-edit')) return;
+  const oldName = t.name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'task-name-edit';
+  input.value = oldName;
+  input.maxLength = 100;
+  input.setAttribute('aria-label', 'Rename task');
+  // Stop card click from re-selecting / propagating while editing
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let settled = false;
+  const finish = (save) => {
+    if (settled) return;
+    settled = true;
+    if (save) {
+      const newName = input.value.trim();
+      if (newName && newName !== oldName) {
+        t.name = newName;
+        saveAll();
+        renderTasks();
+        if (id === activeId) renderActivePill();
+        return;
+      }
+    }
+    renderTasks();
+    if (id === activeId) renderActivePill();
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); settled = true; renderTasks(); }
+  });
+}
+
 // ── RENDER TASKS ──
 function renderTasks() {
   const list = document.getElementById('taskList');
@@ -1538,7 +1719,7 @@ function renderTasks() {
       ${!t.done ? `<div class="drag-handle" title="Drag to reorder">⋮⋮</div>` : `<div class="drag-handle ghost"></div>`}
       <div class="check-wrap" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</div>
       <div class="task-info">
-        <div class="task-name">${esc(t.name)}</div>
+        <div class="task-name" ${!t.done ? `ondblclick="event.stopPropagation();renameTask(${t.id})" title="Double-click to rename"` : ''}>${esc(t.name)}</div>
         <div class="task-meta">${srcTag}${sessTag}</div>
         ${pct>0?`<div class="time-bar"><div class="time-bar-fill" style="width:${pct}%"></div></div>`:''}
       </div>
@@ -1548,6 +1729,7 @@ function renderTasks() {
         </div>
         <div class="time-badge" onclick="event.stopPropagation();toggleTE(${t.id})" title="Click to change time">${fmtSecs(t.secsRemaining)}</div>
         ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? '⏸' : '▶'}</button>` : ''}
+        ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">✎</button>` : ''}
         <button class="btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</button>
       </div>
     </div>`;
@@ -1865,7 +2047,8 @@ function doImport() {
         mins: importDefaultMin,
         secsRemaining: importDefaultMin*60,
         done: false, sessions: 0, secsSpent: 0,
-        source: 'gtasks', createdAt: Date.now()
+        source: 'gtasks', createdAt: Date.now(),
+        notes: ''
       };
       tasks.push(t);
       added++;
@@ -1947,6 +2130,20 @@ loadAll();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
 renderTasks(); updateStats(); renderActivePill();
 renderClock();
+
+// memo: bind once
+(function bindMemo() {
+  const ta = document.getElementById('taskMemo');
+  if (!ta) return;
+  ta.addEventListener('input', onMemoInput);
+  // flush any pending memo write when the tab is hidden / app backgrounded
+  ta.addEventListener('blur', () => {
+    if (memoSaveTimer) { clearTimeout(memoSaveTimer); memoSaveTimer = null; saveAll(); }
+  });
+})();
+window.addEventListener('pagehide', () => {
+  if (memoSaveTimer) { clearTimeout(memoSaveTimer); memoSaveTimer = null; saveAll(); }
+});
 setInterval(renderDots, 2000);
 setInterval(saveAll, 30000); // auto-save every 30s
 
