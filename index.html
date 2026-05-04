@@ -692,7 +692,6 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   border: 1px solid var(--border2); background: var(--surface2);
   color: var(--text2); font-size: 11px; font-family: 'DM Mono', monospace;
   cursor: pointer; transition: all 0.18s;
-  margin-left: auto;
 }
 .sync-badge:hover { border-color: var(--accent); color: var(--accent); }
 .sync-badge.connected { color: var(--green); border-color: rgba(41,128,185,0.4); }
@@ -805,6 +804,47 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   .ring-wrap, .ring-wrap svg { width: 150px; height: 150px; }
   .time-display { font-size: 32px; }
 }
+
+/* ── THEME TOGGLE BUTTON ── */
+.btn-theme {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text2); font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.18s; flex-shrink: 0;
+  margin-left: auto;
+}
+.btn-theme:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── ACTIVE MODE BADGE (single focus) ── */
+.btn-small.active-mode {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ── LIGHT MODE ── */
+body.light {
+  --bg: #eef0f5;
+  --surface: #ffffff;
+  --surface2: #f2f4f8;
+  --surface3: #e5e8ef;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --text: #1a1d2e;
+  --text2: #4a5268;
+  --text3: #8a94a8;
+  --accent-soft: rgba(192,57,43,0.10);
+  --accent-glow: rgba(192,57,43,0.20);
+  --green-soft: rgba(41,128,185,0.08);
+  --blue-soft: rgba(41,128,185,0.10);
+  --red-soft: rgba(231,76,60,0.07);
+}
+body.light .task-memo {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+  border-color: rgba(0,0,0,0.12);
+}
+body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 </style>
 </head>
 <body>
@@ -884,6 +924,7 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   <div class="app-logo">
     <div class="logo-icon">⏱</div>
     <span class="logo-text">Focus</span>
+    <button class="btn-theme" id="btnTheme" onclick="toggleTheme()" title="Toggle light / dark">☽</button>
     <span class="sync-badge" id="syncBadge" onclick="openSyncModal()" title="Multi-device sync">Sync off</span>
   </div>
   <div class="mode-row">
@@ -967,6 +1008,7 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
         <div class="panel-header">
           <span class="panel-title">Active Tasks</span>
           <div class="header-actions">
+            <button class="btn-small" id="btnFocus" onclick="toggleSingleFocus()" title="Show only the current task">◉ Focus Mode</button>
             <button class="btn-small" onclick="clearDone()">✓ Clear Done</button>
             <button class="btn-import" onclick="openImport()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
@@ -1069,6 +1111,8 @@ let sessionsDone = 0, minsFocused = 0, sessionStartSecs = 0, elapsedSecs = 0;
 let tasks = [], history = [];
 let activeId = null;
 let importDefaultMin = 25, quickMin = 25;
+let darkMode = true;
+let singleFocus = false;
 
 // ── PERSISTENCE ──
 function saveAll() {
@@ -1380,7 +1424,7 @@ function renderClock() {
   const strokeColor = isBreak ? '#2980b9' : '#c0392b';
   const glowColor   = isBreak ? 'rgba(41,128,185,0.45)' : 'rgba(192,57,43,0.4)';
   const tickActive  = isBreak ? '#2980b9' : '#c0392b';
-  const tickDim     = 'rgba(255,255,255,0.08)';
+  const tickDim     = document.body.classList.contains('light') ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.08)';
 
   const TOTAL_TICKS = 60;
   let html = '';
@@ -1704,7 +1748,16 @@ function renderTasks() {
   }
   const active = tasks.filter(t=>!t.done);
   const done   = tasks.filter(t=>t.done);
-  list.innerHTML = [...active,...done].map(t => {
+  let toRender = [...active, ...done];
+  if (singleFocus) {
+    const focusTask = active.find(x => x.id === activeId) || active[0];
+    toRender = focusTask ? [focusTask] : [];
+    if (toRender.length === 0) {
+      list.innerHTML = `<div class="empty-msg"><div class="big">✓</div>All tasks done!<br><span style="font-size:11px;color:var(--text3)">Turn off Focus Mode to see completed tasks</span></div>`;
+      return;
+    }
+  }
+  list.innerHTML = toRender.map(t => {
     const isAct = t.id===activeId;
     const pct = t.mins>0 ? Math.min(100, Math.round(((t.mins*60-t.secsRemaining)/(t.mins*60))*100)) : 0;
     const srcTag = t.source==='gtasks'
@@ -2066,6 +2119,27 @@ function doImport() {
   else alert(added+' task'+(added>1?'s':'')+' imported successfully!');
 }
 
+// ── THEME ──
+function toggleTheme() {
+  darkMode = !darkMode;
+  document.body.classList.toggle('light', !darkMode);
+  const btn = document.getElementById('btnTheme');
+  if (btn) btn.textContent = darkMode ? '☽' : '☀';
+  try { localStorage.setItem('focustimer_theme', darkMode ? 'dark' : 'light'); } catch(e) {}
+  renderClock();
+}
+
+// ── SINGLE FOCUS MODE ──
+function toggleSingleFocus() {
+  singleFocus = !singleFocus;
+  const btn = document.getElementById('btnFocus');
+  if (btn) btn.classList.toggle('active-mode', singleFocus);
+  const title = document.querySelector('.panel-title');
+  if (title) title.textContent = singleFocus ? 'Focus Task' : 'Active Tasks';
+  try { localStorage.setItem('focustimer_singlefocus', singleFocus ? '1' : '0'); } catch(e) {}
+  renderTasks();
+}
+
 // ── QUICK TIME ──
 function setQuickTime(min,btn) {
   quickMin=min;
@@ -2127,6 +2201,23 @@ function playSound(name) {
 
 // ── INIT ──
 loadAll();
+(function restorePrefs() {
+  const t = localStorage.getItem('focustimer_theme');
+  if (t === 'light') {
+    darkMode = false;
+    document.body.classList.add('light');
+    const btn = document.getElementById('btnTheme');
+    if (btn) btn.textContent = '☀';
+  }
+  const sf = localStorage.getItem('focustimer_singlefocus');
+  if (sf === '1') {
+    singleFocus = true;
+    const btn = document.getElementById('btnFocus');
+    if (btn) btn.classList.add('active-mode');
+    const title = document.querySelector('.panel-title');
+    if (title) title.textContent = 'Focus Task';
+  }
+})();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
 renderTasks(); updateStats(); renderActivePill();
 renderClock();
