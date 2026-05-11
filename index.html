@@ -685,6 +685,88 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
 .task-card.drop-before { box-shadow: inset 0 2px 0 0 var(--accent); }
 .task-card.drop-after  { box-shadow: inset 0 -2px 0 0 var(--accent); }
 
+/* ── CATEGORY GROUPS ── */
+.cat-inp {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  max-width: 150px;
+  transition: border-color 0.2s;
+}
+.cat-inp:focus { border-color: var(--accent); }
+.cat-group {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 4px;
+}
+.cat-group + .cat-group { margin-top: 14px; }
+.cat-body { display: flex; flex-direction: column; gap: 6px; }
+.cat-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  color: var(--text2);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  transition: background 0.15s, border-color 0.15s;
+  border: 1px solid transparent;
+}
+.cat-header:hover { background: var(--surface2); }
+.cat-header.drop-into-group {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.cat-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  font-size: 11px; color: var(--text3);
+  transition: transform 0.15s;
+}
+.cat-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+}
+.cat-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.cat-meta {
+  color: var(--text3);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  margin-left: 4px;
+}
+.cat-actions {
+  margin-left: auto;
+  display: flex; gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cat-header:hover .cat-actions { opacity: 1; }
+.cat-header .cat-actions .btn-edit,
+.cat-header .cat-actions .btn-del { opacity: 1; }
+
+/* Color stripe on cards whose task has a category — but selected/done win */
+.task-card.has-cat:not(.selected):not(.done)::before { background: var(--cat-color); }
+.task-card.has-cat:not(.selected):not(.done):hover::before { background: var(--cat-color); }
+
+/* Completed mini-section — visually muted */
+.done-group { margin-top: 18px; opacity: 0.95; }
+.done-header { cursor: default; color: var(--text3); }
+.done-header:hover { background: transparent; }
+.done-header .cat-name { color: var(--text3); font-weight: 500; }
+
 /* sync badge in left panel */
 .sync-badge {
   display: inline-flex; align-items: center; gap: 6px;
@@ -773,6 +855,11 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   .add-row { flex-wrap: wrap; }
   .task-inp { min-width: 0; }
   .time-inp { width: 64px; }
+  .cat-inp { max-width: 130px; font-size: 12px; padding: 9px 6px; }
+  .cat-header { padding: 5px 8px 5px 4px; }
+  .cat-name { font-size: 12px; }
+  .cat-meta { font-size: 10px; }
+  .cat-actions { opacity: 1; }
 
   .quick-times { gap: 4px; }
   .qt-btn { padding: 5px 10px; font-size: 11px; }
@@ -1020,6 +1107,9 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
           <input class="task-inp" id="taskInp" placeholder="Add a new task..." maxlength="100"
             onkeydown="if(event.key==='Enter') addTask()"/>
           <input class="time-inp" id="taskTime" type="text" value="25m" placeholder="25m"/>
+          <select class="cat-inp" id="taskCategory" onchange="onCategoryPickerChange()" title="Project / category">
+            <option value="">No category</option>
+          </select>
           <button class="btn-add" onclick="addTask()">+ Add</button>
         </div>
         <div class="quick-times" id="quickTimes">
@@ -1085,10 +1175,14 @@ const MODES = {
   short: { label:'Short Break', min:5, break:true },
   long:  { label:'Long Break', min:15, break:true }
 };
-const STORAGE_TASKS    = 'focustimer_tasks';
-const STORAGE_HISTORY  = 'focustimer_history';
-const STORAGE_STATS    = 'focustimer_stats';
-const STORAGE_SYNCCODE = 'focustimer_synccode';
+const STORAGE_TASKS      = 'focustimer_tasks';
+const STORAGE_HISTORY    = 'focustimer_history';
+const STORAGE_STATS      = 'focustimer_stats';
+const STORAGE_SYNCCODE   = 'focustimer_synccode';
+const STORAGE_CATEGORIES = 'focustimer_categories';
+
+// Round-robin palette for new categories
+const CAT_COLORS = ['#c0392b', '#2980b9', '#e67e22', '#27ae60', '#8e44ad', '#16a085'];
 
 // ── SUPABASE SYNC ──
 const SUPABASE_URL = 'https://ghmdvkmempbnjcamqzuc.supabase.co';
@@ -1108,7 +1202,8 @@ let running = false, ticker = null;
 // wall-clock anchor — survives tab/app backgrounding on iOS, throttled tabs on desktop
 let tickAnchorMs = 0, tickAnchorRemaining = 0;
 let sessionsDone = 0, minsFocused = 0, sessionStartSecs = 0, elapsedSecs = 0;
-let tasks = [], history = [];
+let tasks = [], history = [], categories = [];
+let uncatCollapsed = false;
 let activeId = null;
 let importDefaultMin = 25, quickMin = 25;
 let darkMode = true;
@@ -1120,6 +1215,7 @@ function saveAll() {
     localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
     localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
     localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
+    localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
   } catch(e) {}
   schedulePush();
 }
@@ -1135,7 +1231,7 @@ async function pushToCloud() {
   if (!syncCode || !sb || syncSuppress) return;
   const payload = {
     sync_id: syncCode,
-    data: { tasks, history, stats: { sessionsDone, minsFocused }, ts: Date.now() },
+    data: { tasks, history, categories, stats: { sessionsDone, minsFocused }, ts: Date.now() },
     updated_at: new Date().toISOString(),
   };
   try {
@@ -1160,9 +1256,12 @@ function applyRemote(d) {
   if (!d) return;
   syncSuppress = true;
   try {
-    if (Array.isArray(d.tasks))   tasks   = d.tasks;
-    if (Array.isArray(d.history)) history = d.history;
+    if (Array.isArray(d.tasks))      tasks      = d.tasks;
+    if (Array.isArray(d.history))    history    = d.history;
+    if (Array.isArray(d.categories)) categories = d.categories;
     if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; }
+    // tasks from older clients may lack categoryId — default to null (Uncategorized)
+    tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
     if (activeId && !tasks.find(t => t.id === activeId)) {
       const first = tasks.find(t => !t.done);
       activeId = first ? first.id : null;
@@ -1171,6 +1270,7 @@ function applyRemote(d) {
       localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
       localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
       localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
+      localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
     } catch(e) {}
     renderTasks(); renderHistory(); renderActivePill(); updateStats(); renderDots();
   } finally {
@@ -1244,8 +1344,10 @@ function loadAll() {
     const t = localStorage.getItem(STORAGE_TASKS);
     const h = localStorage.getItem(STORAGE_HISTORY);
     const s = localStorage.getItem(STORAGE_STATS);
+    const c = localStorage.getItem(STORAGE_CATEGORIES);
     if (t) tasks = JSON.parse(t);
     if (h) history = JSON.parse(h);
+    if (c) categories = JSON.parse(c);
     if (s) { const p = JSON.parse(s); sessionsDone = p.sessionsDone||0; minsFocused = p.minsFocused||0; }
     // restore activeId to first non-done task
     if (!activeId) {
@@ -1254,7 +1356,7 @@ function loadAll() {
     }
   } catch(e) {}
 
-  // ── Sanitize: remove duplicate task IDs ──
+  // ── Sanitize: remove duplicate task IDs, default categoryId for legacy tasks ──
   const seenIds = new Set();
   tasks = tasks.filter(t => {
     const idStr = String(t.id);
@@ -1262,6 +1364,24 @@ function loadAll() {
     seenIds.add(idStr);
     return t && t.name && typeof t.name === 'string';
   });
+  tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
+
+  // ── Sanitize: drop categories without id/name; ensure required fields ──
+  const seenCatIds = new Set();
+  categories = categories.filter(c => {
+    if (!c || typeof c.id !== 'string' || !c.name) return false;
+    if (seenCatIds.has(c.id)) return false;
+    seenCatIds.add(c.id);
+    return true;
+  });
+  categories.forEach((c, i) => {
+    if (typeof c.order !== 'number') c.order = i;
+    if (!c.color) c.color = CAT_COLORS[i % CAT_COLORS.length];
+    if (typeof c.collapsed !== 'boolean') c.collapsed = false;
+  });
+  // Re-parent any task whose categoryId points to a deleted category
+  const validCatIds = new Set(categories.map(c => c.id));
+  tasks.forEach(t => { if (t.categoryId && !validCatIds.has(t.categoryId)) t.categoryId = null; });
 
   // ── Sanitize: remove duplicate history entries ──
   const seenHist = new Set();
@@ -1587,16 +1707,23 @@ function addTask(name, mins, source) {
   const n = name || document.getElementById('taskInp').value.trim();
   if (!n) return;
   const m = mins || parseTime(document.getElementById('taskTime').value);
+  const picker = document.getElementById('taskCategory');
+  let categoryId = null;
+  if (picker && picker.value && picker.value !== '__new') {
+    // Only accept ids that actually exist
+    if (categories.find(c => c.id === picker.value)) categoryId = picker.value;
+  }
   const t = {
     id: Date.now()+Math.random(),
     name: n, mins: m, secsRemaining: m*60,
     done: false, sessions: 0, secsSpent: 0,
     source: source||'manual', createdAt: Date.now(),
-    notes: ''
+    notes: '',
+    categoryId,
   };
   tasks.push(t);
   if (!name) {
-    // typed manually — clear input
+    // typed manually — clear input but keep the category picker on the same value
     document.getElementById('taskInp').value = '';
     document.getElementById('taskTime').value = quickMin+'m';
     // select it and save immediately for single adds
@@ -1605,6 +1732,29 @@ function addTask(name, mins, source) {
     playSound('clap');
   }
   // for batch imports, caller handles render+save (and stays silent)
+}
+
+function onCategoryPickerChange() {
+  const picker = document.getElementById('taskCategory');
+  if (!picker) return;
+  if (picker.value === '__new') {
+    promptNewCategory();
+  }
+}
+
+function renderCategoryPicker() {
+  const picker = document.getElementById('taskCategory');
+  if (!picker) return;
+  const prev = picker.value;
+  const sorted = categories.slice().sort((a,b)=>a.order-b.order);
+  const opts = ['<option value="">No category</option>']
+    .concat(sorted.map(c => `<option value="${c.id}">${esc(c.name)}</option>`))
+    .concat(['<option value="__new">+ New category…</option>']);
+  picker.innerHTML = opts.join('');
+  // Restore prior selection if still valid
+  if (prev && (prev === '' || categories.find(c => c.id === prev))) {
+    picker.value = prev;
+  }
 }
 
 function toggleDone(id) {
@@ -1686,6 +1836,107 @@ function clearDone() {
   renderTasks(); updateStats(); saveAll();
 }
 
+// ── CATEGORY CRUD ──
+function addCategory(name) {
+  const n = (name || '').trim();
+  if (!n) return null;
+  // Deduplicate by case-insensitive name
+  const existing = categories.find(c => c.name.toLowerCase() === n.toLowerCase());
+  if (existing) return existing;
+  const cat = {
+    id: 'c_' + Date.now() + '_' + Math.floor(Math.random()*1e6),
+    name: n,
+    color: CAT_COLORS[categories.length % CAT_COLORS.length],
+    order: categories.length,
+    collapsed: false,
+  };
+  categories.push(cat);
+  saveAll();
+  renderTasks();
+  return cat;
+}
+
+function promptNewCategory() {
+  const name = window.prompt('New category name:');
+  if (!name) { renderCategoryPicker(); return null; }
+  const cat = addCategory(name);
+  if (cat) {
+    const picker = document.getElementById('taskCategory');
+    if (picker) picker.value = cat.id;
+  } else {
+    renderCategoryPicker();
+  }
+  return cat;
+}
+
+function renameCategory(id) {
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+  const header = document.querySelector(`.cat-header[data-cat-id="${id}"]`);
+  if (!header) return;
+  const nameEl = header.querySelector('.cat-name');
+  if (!nameEl) return;
+  if (header.querySelector('.task-name-edit')) return;
+  const oldName = cat.name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'task-name-edit';
+  input.value = oldName;
+  input.maxLength = 60;
+  input.setAttribute('aria-label', 'Rename category');
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let settled = false;
+  const finish = (save) => {
+    if (settled) return;
+    settled = true;
+    if (save) {
+      const v = input.value.trim();
+      if (v && v !== oldName) {
+        cat.name = v;
+        saveAll();
+      }
+    }
+    renderTasks();
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); settled = true; renderTasks(); }
+  });
+}
+
+function deleteCategory(id) {
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+  const taskCount = tasks.filter(t => t.categoryId === id).length;
+  const msg = taskCount > 0
+    ? `Delete "${cat.name}"? Its ${taskCount} task${taskCount>1?'s':''} will move to Uncategorized.`
+    : `Delete "${cat.name}"?`;
+  if (!confirm(msg)) return;
+  tasks.forEach(t => { if (t.categoryId === id) t.categoryId = null; });
+  categories = categories.filter(c => c.id !== id);
+  saveAll();
+  renderTasks();
+}
+
+function toggleCategoryCollapsed(id) {
+  if (id === '__uncat') {
+    uncatCollapsed = !uncatCollapsed;
+    try { localStorage.setItem('focustimer_uncat_collapsed', uncatCollapsed ? '1' : '0'); } catch(e) {}
+    renderTasks();
+    return;
+  }
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+  cat.collapsed = !cat.collapsed;
+  saveAll();
+  renderTasks();
+}
+
 function setTaskTime(id, mins) {
   const t = tasks.find(x=>x.id===id);
   if (!t) return;
@@ -1740,7 +1991,64 @@ function renameTask(id) {
 }
 
 // ── RENDER TASKS ──
+function renderTaskCard(t) {
+  const isAct = t.id===activeId;
+  const pct = t.mins>0 ? Math.min(100, Math.round(((t.mins*60-t.secsRemaining)/(t.mins*60))*100)) : 0;
+  const srcTag = t.source==='gtasks'
+    ? `<span class="tag-source gtasks">Google Tasks</span>`
+    : `<span class="tag-source manual">Manual</span>`;
+  const sessTag = t.sessions>0 ? `<span class="tag-sessions">◉ ${t.sessions}×</span>` : '';
+  const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : null;
+  const catAttr = cat ? `style="--cat-color:${cat.color}" data-cat-color="${cat.color}"` : '';
+  const catClass = cat ? ' has-cat' : '';
+  return `
+  <div class="task-card${catClass} ${isAct?'selected':''} ${t.done?'done':''}"
+       data-task-id="${t.id}"
+       data-cat-id="${t.categoryId||''}"
+       draggable="${!t.done}"
+       ${catAttr}
+       onclick="selectTask(${t.id})">
+    ${!t.done ? `<div class="drag-handle" title="Drag to reorder">⋮⋮</div>` : `<div class="drag-handle ghost"></div>`}
+    <div class="check-wrap" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</div>
+    <div class="task-info">
+      <div class="task-name" ${!t.done ? `ondblclick="event.stopPropagation();renameTask(${t.id})" title="Double-click to rename"` : ''}>${esc(t.name)}</div>
+      <div class="task-meta">${srcTag}${sessTag}</div>
+      ${pct>0?`<div class="time-bar"><div class="time-bar-fill" style="width:${pct}%"></div></div>`:''}
+    </div>
+    <div class="task-right">
+      <div class="inline-time-edit" id="te_${t.id}">
+        ${[15,25,30,45,60].map(m=>`<button class="time-quick-btn" onclick="event.stopPropagation();setTaskTime(${t.id},${m});closeTE(${t.id})">${m}m</button>`).join('')}
+      </div>
+      <div class="time-badge" onclick="event.stopPropagation();toggleTE(${t.id})" title="Click to change time">${fmtSecs(t.secsRemaining)}</div>
+      ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? '⏸' : '▶'}</button>` : ''}
+      ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">✎</button>` : ''}
+      <button class="btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</button>
+    </div>
+  </div>`;
+}
+
+function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategorized) {
+  const count = taskList.length;
+  const rollupSecs = taskList.reduce((s, t) => s + (t.secsRemaining || 0), 0);
+  const rollup = rollupSecs > 0 ? fmtSecs(rollupSecs) + ' left' : '0m';
+  const chev = collapsed ? '▸' : '▾';
+  const dot = `<span class="cat-dot" style="background:${color}"></span>`;
+  const actions = isUncategorized ? '' : `
+    <button class="btn-edit" onclick="event.stopPropagation();renameCategory('${id}')" title="Rename group">✎</button>
+    <button class="btn-del" onclick="event.stopPropagation();deleteCategory('${id}')" title="Delete group">✕</button>
+  `;
+  return `
+  <div class="cat-header ${collapsed?'collapsed':''}" data-cat-id="${id}" onclick="toggleCategoryCollapsed('${id}')">
+    <span class="cat-toggle">${chev}</span>
+    ${dot}
+    <span class="cat-name">${esc(name)}</span>
+    <span class="cat-meta">${count} task${count===1?'':'s'} · ${rollup}</span>
+    <div class="cat-actions">${actions}</div>
+  </div>`;
+}
+
 function renderTasks() {
+  renderCategoryPicker();
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
     list.innerHTML = `<div class="empty-msg"><div class="big">📋</div>Add tasks above or import from Google Tasks<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
@@ -1748,45 +2056,56 @@ function renderTasks() {
   }
   const active = tasks.filter(t=>!t.done);
   const done   = tasks.filter(t=>t.done);
-  let toRender = [...active, ...done];
+
   if (singleFocus) {
     const focusTask = active.find(x => x.id === activeId) || active[0];
-    toRender = focusTask ? [focusTask] : [];
-    if (toRender.length === 0) {
+    if (!focusTask) {
       list.innerHTML = `<div class="empty-msg"><div class="big">✓</div>All tasks done!<br><span style="font-size:11px;color:var(--text3)">Turn off Focus Mode to see completed tasks</span></div>`;
       return;
     }
+    list.innerHTML = renderTaskCard(focusTask);
+    attachDragHandlers();
+    return;
   }
-  list.innerHTML = toRender.map(t => {
-    const isAct = t.id===activeId;
-    const pct = t.mins>0 ? Math.min(100, Math.round(((t.mins*60-t.secsRemaining)/(t.mins*60))*100)) : 0;
-    const srcTag = t.source==='gtasks'
-      ? `<span class="tag-source gtasks">Google Tasks</span>`
-      : `<span class="tag-source manual">Manual</span>`;
-    const sessTag = t.sessions>0 ? `<span class="tag-sessions">◉ ${t.sessions}×</span>` : '';
-    return `
-    <div class="task-card ${isAct?'selected':''} ${t.done?'done':''}"
-         data-task-id="${t.id}"
-         draggable="${!t.done}"
-         onclick="selectTask(${t.id})">
-      ${!t.done ? `<div class="drag-handle" title="Drag to reorder">⋮⋮</div>` : `<div class="drag-handle ghost"></div>`}
-      <div class="check-wrap" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</div>
-      <div class="task-info">
-        <div class="task-name" ${!t.done ? `ondblclick="event.stopPropagation();renameTask(${t.id})" title="Double-click to rename"` : ''}>${esc(t.name)}</div>
-        <div class="task-meta">${srcTag}${sessTag}</div>
-        ${pct>0?`<div class="time-bar"><div class="time-bar-fill" style="width:${pct}%"></div></div>`:''}
-      </div>
-      <div class="task-right">
-        <div class="inline-time-edit" id="te_${t.id}">
-          ${[15,25,30,45,60].map(m=>`<button class="time-quick-btn" onclick="event.stopPropagation();setTaskTime(${t.id},${m});closeTE(${t.id})">${m}m</button>`).join('')}
-        </div>
-        <div class="time-badge" onclick="event.stopPropagation();toggleTE(${t.id})" title="Click to change time">${fmtSecs(t.secsRemaining)}</div>
-        ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? '⏸' : '▶'}</button>` : ''}
-        ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">✎</button>` : ''}
-        <button class="btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</button>
-      </div>
-    </div>`;
-  }).join('');
+
+  const sortedCats = categories.slice().sort((a,b)=>a.order-b.order);
+  const html = [];
+
+  for (const cat of sortedCats) {
+    const groupTasks = active.filter(t => t.categoryId === cat.id);
+    if (groupTasks.length === 0) continue;
+    html.push(`<div class="cat-group" data-cat-id="${cat.id}">`);
+    html.push(renderCategoryHeader(cat.id, cat.name, cat.color, groupTasks, cat.collapsed, false));
+    if (!cat.collapsed) {
+      html.push('<div class="cat-body">');
+      html.push(groupTasks.map(renderTaskCard).join(''));
+      html.push('</div>');
+    }
+    html.push('</div>');
+  }
+
+  const uncatTasks = active.filter(t => !t.categoryId);
+  if (uncatTasks.length > 0) {
+    html.push(`<div class="cat-group" data-cat-id="__uncat">`);
+    html.push(renderCategoryHeader('__uncat', 'Uncategorized', 'var(--text3)', uncatTasks, uncatCollapsed, true));
+    if (!uncatCollapsed) {
+      html.push('<div class="cat-body">');
+      html.push(uncatTasks.map(renderTaskCard).join(''));
+      html.push('</div>');
+    }
+    html.push('</div>');
+  }
+
+  if (done.length > 0) {
+    html.push(`<div class="cat-group done-group" data-cat-id="__done">`);
+    html.push(`<div class="cat-header done-header"><span class="cat-toggle">✓</span><span class="cat-name">Completed</span><span class="cat-meta">${done.length} task${done.length===1?'':'s'}</span></div>`);
+    html.push('<div class="cat-body">');
+    html.push(done.map(renderTaskCard).join(''));
+    html.push('</div>');
+    html.push('</div>');
+  }
+
+  list.innerHTML = html.join('');
   attachDragHandlers();
 }
 function toggleTE(id) {
@@ -1805,6 +2124,14 @@ function attachDragHandlers() {
     card.addEventListener('dragleave', onDragLeave);
     card.addEventListener('drop',      onDrop);
     card.addEventListener('dragend',   onDragEnd);
+  });
+  // Allow dropping onto a category header to move the task into that group
+  document.querySelectorAll('#taskList .cat-header').forEach(h => {
+    // Skip the synthetic Completed header
+    if (h.classList.contains('done-header')) return;
+    h.addEventListener('dragover',  onHeaderDragOver);
+    h.addEventListener('dragleave', onHeaderDragLeave);
+    h.addEventListener('drop',      onHeaderDrop);
   });
 }
 
@@ -1844,26 +2171,71 @@ function onDrop(e) {
   if (!target || target.done) return;
   const r = this.getBoundingClientRect();
   const after = (e.clientY - r.top) > r.height / 2;
-  reorderTasks(dragSrcId, targetId, after);
+  // Moving into another group? Adopt the target's categoryId.
+  const src = tasks.find(x => x.id === dragSrcId);
+  const newCatId = (src && src.categoryId !== target.categoryId) ? target.categoryId : src.categoryId;
+  reorderTasks(dragSrcId, targetId, after, newCatId);
 }
 
 function onDragEnd() {
   this.classList.remove('dragging');
   document.querySelectorAll('#taskList .task-card').forEach(c =>
     c.classList.remove('drop-before', 'drop-after'));
+  document.querySelectorAll('#taskList .cat-header').forEach(h =>
+    h.classList.remove('drop-into-group'));
   dragSrcId = null;
 }
 
-function reorderTasks(srcId, targetId, after) {
+function onHeaderDragOver(e) {
+  if (dragSrcId == null) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  this.classList.add('drop-into-group');
+}
+
+function onHeaderDragLeave() {
+  this.classList.remove('drop-into-group');
+}
+
+function onHeaderDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drop-into-group');
+  if (dragSrcId == null) return;
+  const rawId = this.dataset.catId;
+  const newCatId = (rawId === '__uncat' || !rawId) ? null : rawId;
+  moveTaskToCategory(dragSrcId, newCatId);
+}
+
+// Move a task into a category, placing it at the end of that group (or start, if collapsed).
+function moveTaskToCategory(srcId, newCatId) {
+  const src = tasks.find(x => x.id === srcId);
+  if (!src || src.done) return;
+  src.categoryId = newCatId;
+  // Reorder so src lands at the end of its new group within tasks[].
+  const others = tasks.filter(t => t.id !== srcId);
+  // Find the last index of a task in the same group; insert after it. If no group members, append.
+  let insertAt = others.length;
+  for (let i = others.length - 1; i >= 0; i--) {
+    if (!others[i].done && others[i].categoryId === newCatId) { insertAt = i + 1; break; }
+  }
+  others.splice(insertAt, 0, src);
+  tasks = others;
+  renderTasks(); saveAll();
+}
+
+function reorderTasks(srcId, targetId, after, newCatId) {
+  const src = tasks.find(t => t.id === srcId);
+  if (!src) return;
+  if (newCatId !== undefined) src.categoryId = newCatId;
   const active = tasks.filter(t => !t.done);
   const done   = tasks.filter(t => t.done);
   const srcIdx = active.findIndex(t => t.id === srcId);
   if (srcIdx === -1) return;
-  const [src] = active.splice(srcIdx, 1);
+  const [removed] = active.splice(srcIdx, 1);
   let tIdx = active.findIndex(t => t.id === targetId);
-  if (tIdx === -1) { active.splice(srcIdx, 0, src); return; }
+  if (tIdx === -1) { active.splice(srcIdx, 0, removed); return; }
   if (after) tIdx += 1;
-  active.splice(tIdx, 0, src);
+  active.splice(tIdx, 0, removed);
   tasks = [...active, ...done];
   renderTasks(); saveAll();
 }
@@ -2064,7 +2436,7 @@ function exportHistory() { openSaveModal(); }
 // ── IMPORT ──
 function resetAllData() {
   if (!confirm('This will clear ALL tasks and history from this browser.\n\nMake sure to Save Report first if you want to keep your data.\n\nContinue?')) return;
-  tasks = []; history = [];
+  tasks = []; history = []; categories = [];
   sessionsDone = 0; minsFocused = 0; activeId = null;
   remaining = 25*60; totalSec = 25*60; mode = 'focus';
   clearInterval(ticker); running = false;
@@ -2101,7 +2473,8 @@ function doImport() {
         secsRemaining: importDefaultMin*60,
         done: false, sessions: 0, secsSpent: 0,
         source: 'gtasks', createdAt: Date.now(),
-        notes: ''
+        notes: '',
+        categoryId: null,
       };
       tasks.push(t);
       added++;
@@ -2217,6 +2590,8 @@ loadAll();
     const title = document.querySelector('.panel-title');
     if (title) title.textContent = 'Focus Task';
   }
+  const uc = localStorage.getItem('focustimer_uncat_collapsed');
+  if (uc === '1') uncatCollapsed = true;
 })();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
 renderTasks(); updateStats(); renderActivePill();
