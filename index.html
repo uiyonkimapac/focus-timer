@@ -724,6 +724,22 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   border-color: var(--accent);
   color: var(--text);
 }
+.cat-header.lane-dragging { opacity: 0.4; }
+.cat-header.lane-drop-before { box-shadow: inset 0 3px 0 0 var(--accent); }
+.cat-header.lane-drop-after  { box-shadow: inset 0 -3px 0 0 var(--accent); }
+.cat-grip {
+  color: var(--text3);
+  font-size: 11px;
+  letter-spacing: -1px;
+  padding: 0 2px;
+  opacity: 0.35;
+  cursor: grab;
+  transition: opacity 0.15s, color 0.15s;
+  user-select: none;
+}
+.cat-header:hover .cat-grip { opacity: 0.9; color: var(--text2); }
+.cat-grip:active { cursor: grabbing; }
+.cat-header.lane-dragging .cat-grip { opacity: 1; color: var(--accent); }
 .cat-toggle {
   display: inline-flex; align-items: center; justify-content: center;
   width: 18px; height: 18px;
@@ -2037,8 +2053,13 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
     <button class="btn-edit" onclick="event.stopPropagation();renameCategory('${id}')" title="Rename group">✎</button>
     <button class="btn-del" onclick="event.stopPropagation();deleteCategory('${id}')" title="Delete group">✕</button>
   `;
+  // Real categories are draggable so the user can reorder lanes.
+  // Uncategorized stays anchored at the bottom.
+  const drag = isUncategorized ? '' : ' draggable="true"';
+  const grip = isUncategorized ? '' : '<span class="cat-grip" title="Drag to reorder group">⋮⋮</span>';
   return `
-  <div class="cat-header ${collapsed?'collapsed':''}" data-cat-id="${id}" onclick="toggleCategoryCollapsed('${id}')">
+  <div class="cat-header ${collapsed?'collapsed':''}" data-cat-id="${id}"${drag} onclick="toggleCategoryCollapsed('${id}')">
+    ${grip}
     <span class="cat-toggle">${chev}</span>
     ${dot}
     <span class="cat-name">${esc(name)}</span>
@@ -2116,6 +2137,7 @@ function closeTE(id) { const el=document.getElementById('te_'+id); if(el) el.cla
 
 // ── DRAG-AND-DROP REORDER ──
 let dragSrcId = null;
+let dragSrcCatId = null; // set while a category lane is being dragged
 
 function attachDragHandlers() {
   document.querySelectorAll('#taskList .task-card[draggable="true"]').forEach(card => {
@@ -2125,13 +2147,17 @@ function attachDragHandlers() {
     card.addEventListener('drop',      onDrop);
     card.addEventListener('dragend',   onDragEnd);
   });
-  // Allow dropping onto a category header to move the task into that group
+  // Category headers: support both task drops (move task into group) and lane drags (reorder groups)
   document.querySelectorAll('#taskList .cat-header').forEach(h => {
-    // Skip the synthetic Completed header
+    // Skip the synthetic Completed header — never a drop target
     if (h.classList.contains('done-header')) return;
     h.addEventListener('dragover',  onHeaderDragOver);
     h.addEventListener('dragleave', onHeaderDragLeave);
     h.addEventListener('drop',      onHeaderDrop);
+    if (h.getAttribute('draggable') === 'true') {
+      h.addEventListener('dragstart', onLaneDragStart);
+      h.addEventListener('dragend',   onLaneDragEnd);
+    }
   });
 }
 
@@ -2187,6 +2213,20 @@ function onDragEnd() {
 }
 
 function onHeaderDragOver(e) {
+  // Lane drag → show before/after indicator
+  if (dragSrcCatId != null) {
+    const targetCatId = this.dataset.catId;
+    if (targetCatId === dragSrcCatId) return;        // dragging onto self
+    if (targetCatId === '__uncat') return;            // Uncategorized stays anchored
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const r = this.getBoundingClientRect();
+    const after = (e.clientY - r.top) > r.height / 2;
+    this.classList.remove('lane-drop-before', 'lane-drop-after');
+    this.classList.add(after ? 'lane-drop-after' : 'lane-drop-before');
+    return;
+  }
+  // Task drag → highlight whole header as "drop into group"
   if (dragSrcId == null) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
@@ -2194,16 +2234,59 @@ function onHeaderDragOver(e) {
 }
 
 function onHeaderDragLeave() {
-  this.classList.remove('drop-into-group');
+  this.classList.remove('drop-into-group', 'lane-drop-before', 'lane-drop-after');
 }
 
 function onHeaderDrop(e) {
   e.preventDefault();
-  this.classList.remove('drop-into-group');
+  this.classList.remove('drop-into-group', 'lane-drop-before', 'lane-drop-after');
+  // Lane drop?
+  if (dragSrcCatId != null) {
+    const targetCatId = this.dataset.catId;
+    if (!targetCatId || targetCatId === dragSrcCatId || targetCatId === '__uncat') return;
+    const r = this.getBoundingClientRect();
+    const after = (e.clientY - r.top) > r.height / 2;
+    reorderCategories(dragSrcCatId, targetCatId, after);
+    return;
+  }
+  // Task drop into group
   if (dragSrcId == null) return;
   const rawId = this.dataset.catId;
   const newCatId = (rawId === '__uncat' || !rawId) ? null : rawId;
   moveTaskToCategory(dragSrcId, newCatId);
+}
+
+function onLaneDragStart(e) {
+  // Don't fire when the drag originated from a child task card
+  // (defensive — task cards live in .cat-body, not .cat-header, so this rarely matters)
+  dragSrcCatId = this.dataset.catId;
+  this.classList.add('lane-dragging');
+  try { e.dataTransfer.setData('text/plain', 'lane:' + dragSrcCatId); } catch(_) {}
+  e.dataTransfer.effectAllowed = 'move';
+  e.stopPropagation();
+}
+
+function onLaneDragEnd() {
+  this.classList.remove('lane-dragging');
+  document.querySelectorAll('#taskList .cat-header').forEach(h =>
+    h.classList.remove('lane-drop-before', 'lane-drop-after', 'drop-into-group'));
+  dragSrcCatId = null;
+}
+
+function reorderCategories(srcId, targetId, after) {
+  const srcIdx = categories.findIndex(c => c.id === srcId);
+  const tgtIdx = categories.findIndex(c => c.id === targetId);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+  const [src] = categories.splice(srcIdx, 1);
+  // Recompute target index since the array just shrunk
+  let insertAt = categories.findIndex(c => c.id === targetId);
+  if (insertAt === -1) { categories.splice(srcIdx, 0, src); return; }
+  if (after) insertAt += 1;
+  categories.splice(insertAt, 0, src);
+  // Renumber .order so the new arrangement persists
+  categories.forEach((c, i) => { c.order = i; });
+  saveAll();
+  renderTasks();
 }
 
 // Move a task into a category, placing it at the end of that group (or start, if collapsed).
