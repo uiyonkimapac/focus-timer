@@ -1313,6 +1313,37 @@ let syncChannel = null;     // realtime subscription
 let syncSuppress = false;   // true = currently applying remote update, skip push
 let syncPushTimer = null;   // debounce
 
+// ── SYNC VERSIONING ──
+// Conflict resolution for last-write-wins sync without a server-side merge.
+// dataTimestamp bumps only on actual local content changes; lastClearedAt bumps
+// only on explicit user clears. applyRemote uses both to reject stale pushes
+// from devices that haven't yet seen our latest clear.
+const STORAGE_DATATS    = 'focustimer_dataTs';
+const STORAGE_CLEAREDAT = 'focustimer_clearedAt';
+let dataTimestamp = 0;
+let lastClearedAt = 0;
+let lastPushedDataHash = '';
+function persistVersionState() {
+  try {
+    localStorage.setItem(STORAGE_DATATS, String(dataTimestamp));
+    localStorage.setItem(STORAGE_CLEAREDAT, String(lastClearedAt));
+  } catch(e) {}
+}
+function bumpDataTimestamp() {
+  dataTimestamp = Math.max(dataTimestamp + 1, Date.now());
+}
+function markCleared() {
+  lastClearedAt = Date.now();
+  bumpDataTimestamp();
+  persistVersionState();
+}
+function snapshotHash() {
+  // Cheap fingerprint of the synced content. Used to detect "nothing changed
+  // since last push" so the 30s periodic save doesn't bump dataTimestamp.
+  return JSON.stringify(tasks) + '|' + JSON.stringify(history) + '|' +
+         JSON.stringify(categories) + '|' + sessionsDone + '|' + minsFocused;
+}
+
 // ── STATE ──
 let mode = 'focus';
 let totalSec = 25*60, remaining = 25*60;
@@ -1335,7 +1366,15 @@ function saveAll() {
     localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
     localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
   } catch(e) {}
-  schedulePush();
+  // Only bump dataTimestamp + push when the synced content actually changed.
+  // The 30s setInterval(saveAll) shouldn't masquerade as a real edit.
+  const hash = snapshotHash();
+  if (hash !== lastPushedDataHash) {
+    bumpDataTimestamp();
+    persistVersionState();
+    lastPushedDataHash = hash;
+    schedulePush();
+  }
 }
 
 // ── SYNC: push/pull/realtime ──
@@ -1349,7 +1388,13 @@ async function pushToCloud() {
   if (!syncCode || !sb || syncSuppress) return;
   const payload = {
     sync_id: syncCode,
-    data: { tasks, history, categories, stats: { sessionsDone, minsFocused }, ts: Date.now() },
+    data: {
+      tasks, history, categories,
+      stats: { sessionsDone, minsFocused },
+      ts: Date.now(),
+      dataTimestamp,
+      lastClearedAt,
+    },
     updated_at: new Date().toISOString(),
   };
   try {
@@ -1372,6 +1417,27 @@ async function pullFromCloud() {
 
 function applyRemote(d) {
   if (!d) return;
+  const remoteClearedAt = Number(d.lastClearedAt) || 0;
+  const remoteDataTs    = Number(d.dataTimestamp) || 0;
+
+  // Conflict resolution:
+  // 1. If remote carries a newer CLEAR event, force-apply (the post-clear state).
+  //    Clears are sticky across the sync.
+  // 2. If remote's lastClearedAt is older than ours, the sender hasn't seen our
+  //    clear yet — reject the whole push, regardless of how new its data looks.
+  //    Stops a device that edited just after our clear (but before receiving it)
+  //    from resurrecting old tasks.
+  // 3. Same clear epoch: only apply if remote's dataTimestamp is strictly newer
+  //    than ours (otherwise it's a duplicate, echo, or out-of-order delivery).
+  if (remoteClearedAt > lastClearedAt) {
+    // case 1 — fall through and apply
+  } else if (remoteClearedAt < lastClearedAt) {
+    return; // case 2 — sender is behind on clears
+  } else {
+    // case 3
+    if (remoteDataTs > 0 && remoteDataTs <= dataTimestamp) return;
+  }
+
   syncSuppress = true;
   try {
     if (Array.isArray(d.tasks))      tasks      = d.tasks;
@@ -1384,6 +1450,12 @@ function applyRemote(d) {
       const first = tasks.find(t => !t.done);
       activeId = first ? first.id : null;
     }
+    // Adopt remote's version state so subsequent saveAlls don't push it back as
+    // "something changed". Use max() to stay monotonic across reconnects.
+    if (remoteDataTs > dataTimestamp)       dataTimestamp = remoteDataTs;
+    if (remoteClearedAt > lastClearedAt)    lastClearedAt = remoteClearedAt;
+    persistVersionState();
+    lastPushedDataHash = snapshotHash();
     try {
       localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
       localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
@@ -1467,6 +1539,9 @@ function loadAll() {
     if (h) history = JSON.parse(h);
     if (c) categories = JSON.parse(c);
     if (s) { const p = JSON.parse(s); sessionsDone = p.sessionsDone||0; minsFocused = p.minsFocused||0; }
+    // restore version state — survives reloads so a clear stays sticky
+    dataTimestamp = parseInt(localStorage.getItem(STORAGE_DATATS) || '0', 10) || 0;
+    lastClearedAt = parseInt(localStorage.getItem(STORAGE_CLEAREDAT) || '0', 10) || 0;
     // restore activeId to first non-done task
     if (!activeId) {
       const first = tasks.find(x=>!x.done);
@@ -1509,6 +1584,9 @@ function loadAll() {
     return h && h.name && h.completedAt;
   });
 
+  // Seed the hash so the very first saveAll right below doesn't bump
+  // dataTimestamp just because lastPushedDataHash was empty.
+  lastPushedDataHash = snapshotHash();
   saveAll();
   updateStats();
 }
@@ -1957,6 +2035,7 @@ function deleteTask(id) {
 
 function clearDone() {
   tasks = tasks.filter(x=>!x.done);
+  markCleared();
   renderTasks(); updateStats(); saveAll();
 }
 
@@ -2608,6 +2687,7 @@ function deleteHistory(id) {
 function clearHistory() {
   if (!confirm('Clear all completed task history? This cannot be undone.')) return;
   history = [];
+  markCleared();
   saveAll(); renderHistory(); updateStats();
 }
 
@@ -2714,16 +2794,26 @@ function exportHistory() { openSaveModal(); }
 
 // ── IMPORT ──
 function resetAllData() {
-  if (!confirm('This will clear ALL tasks and history from this browser.\n\nMake sure to Save Report first if you want to keep your data.\n\nContinue?')) return;
+  const syncMsg = syncCode
+    ? '\n\nSync is on — this also clears any other device on code "' + syncCode + '".'
+    : '';
+  if (!confirm('This will clear ALL tasks and history from this browser.' + syncMsg +
+    '\n\nMake sure to Save Report first if you want to keep your data.\n\nContinue?')) return;
   tasks = []; history = []; categories = [];
   sessionsDone = 0; minsFocused = 0; activeId = null;
   remaining = 25*60; totalSec = 25*60; mode = 'focus';
   clearInterval(ticker); running = false;
   document.getElementById('btnPlay').innerHTML = '▶';
-  try {
-    // wipe every possible key this app may have written
-    localStorage.clear();
-  } catch(e) {}
+  // Mark as a clear event so other devices reject any stale pushes that race
+  // with us. saveAll() will persist + push the empty state.
+  markCleared();
+  saveAll();
+  // Force an immediate push (skip the 600ms debounce) so the clear lands on
+  // the cloud before the other device's next periodic save can clobber it.
+  if (syncCode && sb) {
+    clearTimeout(syncPushTimer);
+    pushToCloud();
+  }
   updateDisplay(); updateRing(); updateTopBar();
   renderDots(); renderTasks(); updateStats(); renderActivePill();
   if (document.getElementById('pane-history').classList.contains('active')) renderHistory();
