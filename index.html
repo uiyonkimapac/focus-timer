@@ -120,26 +120,42 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   letter-spacing: 2px; text-transform: uppercase; color: var(--text3);
 }
 .active-pill {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--accent-soft);
-  border: 1px solid rgba(192,57,43,0.35);
-  border-radius: 20px; padding: 6px 14px;
-  margin-bottom: 16px; min-height: 32px; max-width: 320px;
+  display: flex; align-items: center; gap: 10px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid var(--active-color, var(--accent));
+  border-radius: 0;
+  padding: 6px 4px 6px 14px;
+  margin-bottom: 16px; min-height: 36px;
+  width: 100%; max-width: 320px;
+  box-sizing: border-box;
+  transition: border-left-color 0.2s;
 }
-.active-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent); flex-shrink: 0;
-  animation: blink 2s ease-in-out infinite;
+.active-pill.empty {
+  border-left: none;
+  padding-left: 0;
+  min-height: 26px;
+  justify-content: center;
 }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.active-dot { display: none; }
 .active-task-name {
-  font-size: 12px; color: var(--accent);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+  font-size: 14px; font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1 1 auto; min-width: 0;
 }
 .active-task-time {
   margin-left: auto; font-family: 'DM Mono', monospace;
-  font-size: 11px; color: var(--accent); flex-shrink: 0;
+  font-size: 11px; color: var(--text3);
+  font-weight: 400; flex-shrink: 0;
 }
+.active-pill.empty .active-task-name {
+  color: var(--text3); font-style: italic;
+  font-size: 12px; font-weight: 400;
+  text-align: center; flex: 0 1 auto;
+}
+.active-pill.empty .active-task-time { display: none; }
 .controls {
   display: flex; align-items: center;
   justify-content: center; gap: 14px; margin-bottom: 16px;
@@ -617,6 +633,52 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 }
 .btn-confirm:hover { opacity: 0.85; }
 
+/* category color picker */
+.cat-modal-name {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 18px;
+  transition: border-color 0.15s;
+}
+.cat-modal-name:focus { border-color: var(--accent); }
+.cat-modal-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 10px;
+}
+.cat-color-grid {
+  display: grid; grid-template-columns: repeat(10, 1fr);
+  gap: 8px; margin-bottom: 22px;
+}
+.cat-color-swatch {
+  width: 100%; aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.cat-color-swatch:hover { transform: scale(1.12); }
+.cat-color-swatch.sel {
+  border-color: var(--text);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 1px var(--surface), 0 0 0 3px var(--swatch-color, currentColor);
+}
+.cat-color-swatch.sel::after {
+  content: '✓'; position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+}
+
 /* top progress bar */
 .top-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--surface2); z-index: 200; }
 .top-progress-fill { height: 100%; background: var(--accent); transition: width 1s linear; box-shadow: 0 0 8px var(--accent); }
@@ -708,7 +770,7 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
 .cat-body { display: flex; flex-direction: column; gap: 6px; }
 .cat-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 10px 6px 6px;
+  padding: 6px 10px 6px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
@@ -717,8 +779,11 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   letter-spacing: 0.3px;
   transition: background 0.15s, border-color 0.15s;
   border: 1px solid transparent;
+  border-left: 3px solid var(--cat-color, transparent);
+  position: relative;
 }
 .cat-header:hover { background: var(--surface2); }
+.cat-header:hover { background: color-mix(in srgb, var(--cat-color, transparent) 7%, var(--surface2)); }
 .cat-header.drop-into-group {
   background: var(--accent-soft);
   border-color: var(--accent);
@@ -747,9 +812,19 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   transition: transform 0.15s;
 }
 .cat-dot {
-  width: 9px; height: 9px; border-radius: 50%;
+  width: 12px; height: 12px; border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--cat-color, currentColor) 18%, transparent),
+    0 0 6px color-mix(in srgb, var(--cat-color, currentColor) 35%, transparent);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.cat-dot:hover {
+  transform: scale(1.15);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--cat-color, currentColor) 26%, transparent),
+    0 0 10px color-mix(in srgb, var(--cat-color, currentColor) 45%, transparent);
 }
 .cat-name {
   font-weight: 600;
@@ -953,6 +1028,22 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 <body>
 
 <div class="top-progress"><div class="top-progress-fill" id="topBar" style="width:100%"></div></div>
+
+<!-- CATEGORY MODAL -->
+<div class="modal-overlay" id="categoryModal">
+  <div class="modal" style="width:420px;">
+    <div class="modal-title" id="catModalTitle">📁 New category</div>
+    <div class="modal-sub" id="catModalSub">Pick a name and a color.</div>
+    <input type="text" id="catModalName" class="cat-modal-name" placeholder="Category name" maxlength="60" autocomplete="off"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();confirmCategoryModal();}else if(event.key==='Escape'){event.preventDefault();closeCategoryModal();}">
+    <div class="cat-modal-label">Color</div>
+    <div class="cat-color-grid" id="catColorGrid"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCategoryModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmCategoryModal()">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="importModal">
@@ -1197,8 +1288,19 @@ const STORAGE_STATS      = 'focustimer_stats';
 const STORAGE_SYNCCODE   = 'focustimer_synccode';
 const STORAGE_CATEGORIES = 'focustimer_categories';
 
-// Round-robin palette for new categories
-const CAT_COLORS = ['#c0392b', '#2980b9', '#e67e22', '#27ae60', '#8e44ad', '#16a085'];
+// 10-color palette for categories. Tuned for both dark and light themes.
+const CAT_COLORS = [
+  '#e74c3c', // red
+  '#e67e22', // orange
+  '#f1c40f', // yellow
+  '#27ae60', // green
+  '#16a085', // teal
+  '#2980b9', // blue
+  '#5b6fdb', // indigo
+  '#8e44ad', // purple
+  '#e84393', // pink
+  '#7f8c8d', // slate
+];
 
 // ── SUPABASE SYNC ──
 const SUPABASE_URL = 'https://ghmdvkmempbnjcamqzuc.supabase.co';
@@ -1663,10 +1765,16 @@ function setActive(id, autoStart) {
 
 function renderActivePill() {
   const t = tasks.find(x => x.id === activeId);
+  const pill = document.getElementById('activePill');
   if (t && !t.done) {
+    pill.classList.remove('empty');
+    const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : null;
+    pill.style.setProperty('--active-color', cat ? cat.color : '');
     document.getElementById('activeName').textContent = t.name;
     renderActiveTime();
   } else {
+    pill.classList.add('empty');
+    pill.style.removeProperty('--active-color');
     document.getElementById('activeName').textContent = 'No task selected';
     document.getElementById('activeTime').textContent = '';
   }
@@ -1873,16 +1981,99 @@ function addCategory(name) {
 }
 
 function promptNewCategory() {
-  const name = window.prompt('New category name:');
-  if (!name) { renderCategoryPicker(); return null; }
-  const cat = addCategory(name);
-  if (cat) {
-    const picker = document.getElementById('taskCategory');
-    if (picker) picker.value = cat.id;
-  } else {
-    renderCategoryPicker();
+  // Reset the dropdown immediately so it doesn't get stuck on "__new" if the user cancels
+  renderCategoryPicker();
+  openCategoryModal();
+}
+
+// ── CATEGORY MODAL (create + edit, with 10-color picker) ──
+let catModalEditingId = null;
+let catModalSelectedColor = CAT_COLORS[0];
+
+function openCategoryModal(editId) {
+  catModalEditingId = editId || null;
+  const cat = editId ? categories.find(c => c.id === editId) : null;
+  document.getElementById('catModalTitle').textContent = cat ? '✎ Edit category' : '📁 New category';
+  document.getElementById('catModalSub').textContent = cat
+    ? 'Rename it or pick a different color.'
+    : 'Pick a name and a color.';
+  const nameInp = document.getElementById('catModalName');
+  nameInp.value = cat ? cat.name : '';
+  catModalSelectedColor = cat ? cat.color : CAT_COLORS[categories.length % CAT_COLORS.length];
+  renderCatColorGrid();
+  document.getElementById('categoryModal').classList.add('open');
+  setTimeout(() => nameInp.focus(), 30);
+}
+
+function closeCategoryModal() {
+  document.getElementById('categoryModal').classList.remove('open');
+  catModalEditingId = null;
+}
+
+function renderCatColorGrid() {
+  const grid = document.getElementById('catColorGrid');
+  if (!grid) return;
+  grid.innerHTML = CAT_COLORS.map(c =>
+    `<div class="cat-color-swatch${c === catModalSelectedColor ? ' sel' : ''}" ` +
+    `style="background:${c};--swatch-color:${c}" ` +
+    `data-color="${c}" title="${c}" ` +
+    `onclick="selectCatColor('${c}')"></div>`
+  ).join('');
+}
+
+function selectCatColor(c) {
+  catModalSelectedColor = c;
+  renderCatColorGrid();
+}
+
+function confirmCategoryModal() {
+  const nameInp = document.getElementById('catModalName');
+  const name = (nameInp.value || '').trim();
+  if (!name) { nameInp.focus(); return; }
+
+  if (catModalEditingId) {
+    const cat = categories.find(c => c.id === catModalEditingId);
+    if (cat) {
+      // Block renaming onto another existing category's name
+      const collision = categories.find(c =>
+        c.id !== cat.id && c.name.toLowerCase() === name.toLowerCase());
+      if (collision) {
+        alert('A category named "' + collision.name + '" already exists.');
+        nameInp.focus();
+        return;
+      }
+      cat.name = name;
+      cat.color = catModalSelectedColor;
+      saveAll();
+      renderTasks();
+      renderActivePill(); // active pill may inherit cat color
+    }
+    closeCategoryModal();
+    return;
   }
-  return cat;
+
+  // Create mode — dedupe by case-insensitive name
+  const existing = categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+  let cat;
+  if (existing) {
+    existing.color = catModalSelectedColor;
+    cat = existing;
+  } else {
+    cat = {
+      id: 'c_' + Date.now() + '_' + Math.floor(Math.random()*1e6),
+      name,
+      color: catModalSelectedColor,
+      order: categories.length,
+      collapsed: false,
+    };
+    categories.push(cat);
+  }
+  saveAll();
+  renderTasks();
+  renderActivePill();
+  const picker = document.getElementById('taskCategory');
+  if (picker) picker.value = cat.id;
+  closeCategoryModal();
 }
 
 function renameCategory(id) {
@@ -2048,7 +2239,11 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
   const rollupSecs = taskList.reduce((s, t) => s + (t.secsRemaining || 0), 0);
   const rollup = rollupSecs > 0 ? fmtSecs(rollupSecs) + ' left' : '0m';
   const chev = collapsed ? '▸' : '▾';
-  const dot = `<span class="cat-dot" style="background:${color}"></span>`;
+  const dotOnClick = isUncategorized
+    ? ''
+    : `onclick="event.stopPropagation();openCategoryModal('${id}')"`;
+  const dotTitle = isUncategorized ? 'No category' : 'Click to change color or name';
+  const dot = `<span class="cat-dot" style="background:${color}" title="${dotTitle}" ${dotOnClick}></span>`;
   const actions = isUncategorized ? '' : `
     <button class="btn-edit" onclick="event.stopPropagation();renameCategory('${id}')" title="Rename group">✎</button>
     <button class="btn-del" onclick="event.stopPropagation();deleteCategory('${id}')" title="Delete group">✕</button>
@@ -2057,8 +2252,9 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
   // Uncategorized stays anchored at the bottom.
   const drag = isUncategorized ? '' : ' draggable="true"';
   const grip = isUncategorized ? '' : '<span class="cat-grip" title="Drag to reorder group">⋮⋮</span>';
+  const styleAttr = isUncategorized ? '' : ` style="--cat-color:${color}"`;
   return `
-  <div class="cat-header ${collapsed?'collapsed':''}" data-cat-id="${id}"${drag} onclick="toggleCategoryCollapsed('${id}')">
+  <div class="cat-header ${collapsed?'collapsed':''}" data-cat-id="${id}"${drag}${styleAttr} onclick="toggleCategoryCollapsed('${id}')">
     ${grip}
     <span class="cat-toggle">${chev}</span>
     ${dot}
