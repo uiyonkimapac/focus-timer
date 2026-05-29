@@ -1083,12 +1083,17 @@ body.light .btn-mit.active { color: #fff; }
 .streak-warn {
   display: inline-block;
   margin-left: 8px;
+  padding: 2px 7px 3px;
   font-family: 'DM Sans', sans-serif;
-  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
-  color: var(--red);
-  text-shadow: 0 0 6px rgba(231,76,60,0.45);
-  vertical-align: 2px;
+  font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  color: #fff;
+  background: var(--red);
+  border: 1.5px solid var(--red);
+  border-radius: 4px;
   text-transform: uppercase;
+  vertical-align: 2px;
+  line-height: 1;
+  box-shadow: 0 0 10px rgba(231,76,60,0.5);
 }
 .cat-group.not-today-group { margin-top: 12px; }
 .cat-group.not-today-group .cat-header {
@@ -1153,8 +1158,8 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="importModal">
   <div class="modal">
-    <div class="modal-title">📋 Import from Google Tasks</div>
-    <div class="modal-sub">In Google Tasks, <b>select all your tasks → copy (Ctrl+C)</b>, then paste below.<br>Or type any list — one task per line.</div>
+    <div class="modal-title">🧠 Dump Tasks</div>
+    <div class="modal-sub">Empty your head — paste a list or type one task per line.<br>Anything goes: brain dumps, Google Tasks (Ctrl+C → paste), notes.</div>
     <textarea class="import-area" id="importArea" placeholder="Buy groceries&#10;Finish Q2 report&#10;Call client @ 3pm&#10;Review team OKRs&#10;..."></textarea>
     <div class="import-hint">✦ Each line = one task &nbsp;·&nbsp; Blank lines skipped &nbsp;·&nbsp; Duplicates ignored</div>
     <div style="margin-bottom:14px;">
@@ -1316,7 +1321,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
             <button class="btn-small" onclick="clearDone()">✓ Clear Done</button>
             <button class="btn-import" onclick="openImport()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
-              Import from Google Tasks
+              Dump Tasks
             </button>
           </div>
         </div>
@@ -2466,7 +2471,7 @@ function renderTaskCard(t) {
   const catClass = cat ? ' has-cat' : '';
   const mitClass = t.isMIT ? ' is-mit' : '';
   const hidden = isHiddenToday(t);
-  const streakWarn = (t.notTodayStreak >= 3) ? '<span class="streak-warn" title="Snoozed multiple days in a row">FACE IT</span>' : '';
+  const streakWarn = (t.notTodayStreak >= 3) ? '<span class="streak-warn" title="Snoozed multiple days in a row">FACE IT!</span>' : '';
   const mitBtn = !t.done ? `<button class="btn-mit ${t.isMIT?'active':''}" onclick="event.stopPropagation();toggleMIT(${t.id})" title="${t.isMIT?'Remove Most Important':'Mark as Most Important Task'}">MIT</button>` : '';
   const moonBtn = !t.done ? `<button class="btn-not-today ${hidden?'active':''}" onclick="event.stopPropagation();toggleNotToday(${t.id})" title="${hidden?'Bring back to today':'Not today (auto-returns tomorrow)'}">🌙</button>` : '';
   return `
@@ -2532,7 +2537,7 @@ function renderTasks() {
   renderMeta();
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
-    list.innerHTML = `<div class="empty-msg"><div class="big">📋</div>Add tasks above or import from Google Tasks<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
+    list.innerHTML = `<div class="empty-msg"><div class="big">🧠</div>Add a task above or Dump Tasks to clear your head<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
     return;
   }
   // Split: visible (not done, not hidden-today) vs hidden-today vs done.
