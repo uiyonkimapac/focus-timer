@@ -3179,7 +3179,10 @@ function clearExpiredNotToday() {
       mutated = true;
     }
   }
-  if (mutated) bumpDataTimestamp();
+  // Persist + sync immediately. Otherwise the auto-return only lives in memory
+  // until the next 30s autosave, and a tab close before then drops it.
+  if (mutated) saveAll();
+  return mutated;
 }
 function toggleNotToday(id) {
   const t = tasks.find(x => x.id === id);
