@@ -1023,6 +1023,109 @@ body.light .task-memo {
   border-color: rgba(0,0,0,0.12);
 }
 body.light .modal-overlay { background: rgba(0,0,0,0.45); }
+
+/* ── PHASE 1: panel meta (date + total) — 2× sizing ── */
+.panel-meta {
+  display: flex; align-items: center; gap: 14px;
+  padding: 22px 28px 4px;
+  font-family: 'DM Mono', monospace; font-size: 22px;
+  color: var(--text3); letter-spacing: 0.4px;
+  line-height: 1.2;
+}
+.panel-meta .meta-date { color: var(--text2); font-weight: 500; }
+.panel-meta .meta-sep { opacity: 0.4; font-size: 18px; }
+.panel-meta .meta-total { color: var(--text3); }
+.panel-meta .meta-total b { color: var(--text2); font-weight: 600; }
+
+/* ── PHASE 1: MIT chip (yellow "MIT" text, bold, prominent) ── */
+.btn-mit {
+  background: rgba(241,196,15,0.08);
+  border: 1.5px solid rgba(241,196,15,0.25);
+  border-radius: 5px;
+  cursor: pointer; flex-shrink: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  padding: 3px 6px; line-height: 1;
+  color: rgba(241,196,15,0.55); opacity: 0.5;
+  transition: all 0.15s;
+  display: flex; align-items: center;
+}
+.task-card:hover .btn-mit { opacity: 0.85; }
+.btn-mit:hover { transform: scale(1.08); opacity: 1; }
+.btn-mit.active {
+  opacity: 1;
+  background: #f1c40f; color: #2a1f00;
+  border-color: #f1c40f;
+  box-shadow: 0 0 12px rgba(241,196,15,0.55);
+}
+.task-card.is-mit {
+  border-color: #f1c40f;
+  border-width: 2px;
+  background: rgba(241,196,15,0.07);
+}
+.task-card.is-mit::before { background: #f1c40f; width: 6px; }
+.task-card.is-mit .check-wrap { border-color: rgba(241,196,15,0.7); border-width: 2px; }
+.task-card.is-mit .task-name { font-weight: 700; }
+body.light .task-card.is-mit { background: rgba(241,196,15,0.12); }
+body.light .btn-mit.active { color: #fff; }
+
+/* ── PHASE 1: Not Today ── */
+.btn-not-today {
+  opacity: 0; background: none; border: none;
+  color: var(--text3); font-size: 13px; cursor: pointer;
+  padding: 2px 4px; transition: opacity 0.15s, color 0.15s; line-height: 1;
+}
+.task-card:hover .btn-not-today { opacity: 0.55; }
+.btn-not-today:hover { opacity: 1; color: var(--text); }
+.btn-not-today.active { opacity: 1; color: var(--text2); }
+.streak-warn {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+  color: var(--red);
+  text-shadow: 0 0 6px rgba(231,76,60,0.45);
+  vertical-align: 2px;
+  text-transform: uppercase;
+}
+.cat-group.not-today-group { margin-top: 12px; }
+.cat-group.not-today-group .cat-header {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text3);
+}
+.cat-group.not-today-group .cat-header .cat-name { color: var(--text3); font-weight: 500; }
+.cat-group.not-today-group .task-card { opacity: 0.55; }
+.cat-group.not-today-group .task-card:hover { opacity: 0.85; }
+
+/* ── PHASE 1: Undo toast ── */
+.undo-toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); padding: 10px 14px 10px 16px;
+  border-radius: 10px; font-size: 13px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  display: flex; align-items: center; gap: 14px;
+  z-index: 1000; opacity: 0;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  pointer-events: none;
+}
+.undo-toast.open {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1; pointer-events: auto;
+}
+.undo-toast .undo-msg { color: var(--text2); }
+.undo-toast .undo-btn {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 6px;
+  padding: 5px 12px; font-size: 12px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer; transition: filter 0.15s;
+  touch-action: manipulation;
+}
+.undo-toast .undo-btn:hover { filter: brightness(1.12); }
+body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 </style>
 </head>
 <body>
@@ -1198,6 +1301,11 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
   <!-- TASKS TAB -->
   <div class="tab-content">
     <div class="tab-pane active" id="pane-tasks">
+      <div class="panel-meta">
+        <span class="meta-date" id="metaDate">—</span>
+        <span class="meta-sep">·</span>
+        <span class="meta-total" id="metaTotal">0 tasks</span>
+      </div>
       <div class="tasks-pane">
         <div class="panel-header">
           <span class="panel-title">Active Tasks</span>
@@ -1271,6 +1379,12 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
       <button class="btn-confirm" onclick="connectSync()">Connect</button>
     </div>
   </div>
+</div>
+
+<!-- Undo toast (Phase 1) -->
+<div class="undo-toast" id="undoToast">
+  <span class="undo-msg" id="undoMsg">Action undone</span>
+  <button class="undo-btn" id="undoBtn" onclick="runUndo()">Undo</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -1357,6 +1471,12 @@ let activeId = null;
 let importDefaultMin = 25, quickMin = 25;
 let darkMode = true;
 let singleFocus = false;
+let notTodayCollapsed = true;
+
+// ── PHASE 1: UNDO ──
+// Stack of pending undo actions. Only the most recent is exposed via the toast,
+// so this is effectively a single-slot. Each entry: { msg, undoFn, expiresAt, timer }.
+let undoEntry = null;
 
 // ── PERSISTENCE ──
 function saveAll() {
@@ -1922,6 +2042,11 @@ function addTask(name, mins, source) {
     source: source||'manual', createdAt: Date.now(),
     notes: '',
     categoryId,
+    // Phase 1 fields (all optional; older clients ignore them).
+    isMIT: false,
+    notTodayDayKey: null,
+    lastHiddenDayKey: null,
+    notTodayStreak: 0,
   };
   tasks.push(t);
   if (!name) {
@@ -1962,6 +2087,8 @@ function renderCategoryPicker() {
 function toggleDone(id) {
   const t = tasks.find(x=>x.id===id);
   if (!t) return;
+  let undoMsg = null;
+  let undoFn = null;
   if (!t.done) {
     playSound('punch');
     // Stop timer immediately, reset display to 00:00
@@ -1971,6 +2098,8 @@ function toggleDone(id) {
     updateDisplay(); updateRing(); updateTopBar();
 
     // Mark done → archive to history
+    const prevActive = activeId;
+    const prevCompletedAt = t.completedAt || null;
     t.done = true;
     t.completedAt = Date.now();
     const hEntry = {
@@ -1993,6 +2122,22 @@ function toggleDone(id) {
       activeId = null;
       renderActivePill();
     }
+
+    undoMsg = `Completed "${t.name}"`;
+    const restoreHid = hEntry.id;
+    undoFn = () => {
+      t.done = false;
+      t.completedAt = prevCompletedAt;
+      history = history.filter(h => h.id !== restoreHid);
+      activeId = prevActive || t.id;
+      totalSec  = t.mins * 60;
+      remaining = t.secsRemaining > 0 ? t.secsRemaining : t.mins * 60;
+      updateDisplay(); updateRing(); updateTopBar();
+      renderActivePill();
+      bumpDataTimestamp();
+      updateStats(); renderTasks(); renderDots(); saveAll();
+      if (document.getElementById('pane-history').classList.contains('active')) renderHistory();
+    };
   } else {
     // Uncheck → restore to active, reload its time into timer paused
     clearInterval(ticker); running = false;
@@ -2007,13 +2152,18 @@ function toggleDone(id) {
   }
   updateStats(); renderTasks(); renderDots(); saveAll();
   if (document.getElementById('pane-history').classList.contains('active')) renderHistory();
+  if (undoMsg && undoFn) showUndo(undoMsg, undoFn);
 }
 
 function deleteTask(id) {
   // flush any elapsed time before removing
   flushElapsed();
-  tasks = tasks.filter(x=>x.id!==id);
-  if (activeId===id) {
+  const idx = tasks.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const snapshot = tasks[idx];
+  const wasActive = (activeId === id);
+  tasks.splice(idx, 1);
+  if (wasActive) {
     pauseTimer();
     const next = tasks.find(x=>!x.done);
     if (next) {
@@ -2031,12 +2181,37 @@ function deleteTask(id) {
   updateStats();
   renderDots();
   saveAll();
+  showUndo(`Deleted "${snapshot.name}"`, () => {
+    // Restore at the original index so the user's list order is preserved.
+    tasks.splice(Math.min(idx, tasks.length), 0, snapshot);
+    if (wasActive) {
+      activeId = snapshot.id;
+      totalSec  = snapshot.mins * 60;
+      remaining = snapshot.secsRemaining > 0 ? snapshot.secsRemaining : snapshot.mins * 60;
+      updateDisplay(); updateRing(); updateTopBar();
+      renderActivePill();
+    }
+    bumpDataTimestamp();
+    renderTasks(); updateStats(); renderDots(); saveAll();
+  });
 }
 
 function clearDone() {
-  tasks = tasks.filter(x=>!x.done);
+  const removed = tasks.filter(x => x.done);
+  if (removed.length === 0) return;
+  // Snapshot original positions so undo can restore order.
+  const positions = removed.map(r => ({ task: r, idx: tasks.indexOf(r) }));
+  tasks = tasks.filter(x => !x.done);
   markCleared();
   renderTasks(); updateStats(); saveAll();
+  showUndo(`Cleared ${removed.length} completed task${removed.length===1?'':'s'}`, () => {
+    // Re-insert each at its original index (ascending so earlier indices land first).
+    positions.sort((a, b) => a.idx - b.idx).forEach(p => {
+      tasks.splice(Math.min(p.idx, tasks.length), 0, p.task);
+    });
+    bumpDataTimestamp();
+    renderTasks(); updateStats(); saveAll();
+  });
 }
 
 // ── CATEGORY CRUD ──
@@ -2287,17 +2462,23 @@ function renderTaskCard(t) {
   const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : null;
   const catAttr = cat ? `style="--cat-color:${cat.color}" data-cat-color="${cat.color}"` : '';
   const catClass = cat ? ' has-cat' : '';
+  const mitClass = t.isMIT ? ' is-mit' : '';
+  const hidden = isHiddenToday(t);
+  const streakWarn = (t.notTodayStreak >= 3) ? '<span class="streak-warn" title="Snoozed multiple days in a row">FACE IT</span>' : '';
+  const mitBtn = !t.done ? `<button class="btn-mit ${t.isMIT?'active':''}" onclick="event.stopPropagation();toggleMIT(${t.id})" title="${t.isMIT?'Remove Most Important':'Mark as Most Important Task'}">MIT</button>` : '';
+  const moonBtn = !t.done ? `<button class="btn-not-today ${hidden?'active':''}" onclick="event.stopPropagation();toggleNotToday(${t.id})" title="${hidden?'Bring back to today':'Not today (auto-returns tomorrow)'}">🌙</button>` : '';
   return `
-  <div class="task-card${catClass} ${isAct?'selected':''} ${t.done?'done':''}"
+  <div class="task-card${catClass}${mitClass} ${isAct?'selected':''} ${t.done?'done':''}"
        data-task-id="${t.id}"
        data-cat-id="${t.categoryId||''}"
        draggable="${!t.done}"
        ${catAttr}
        onclick="selectTask(${t.id})">
     ${!t.done ? `<div class="drag-handle" title="Drag to reorder">⋮⋮</div>` : `<div class="drag-handle ghost"></div>`}
+    ${mitBtn}
     <div class="check-wrap" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</div>
     <div class="task-info">
-      <div class="task-name" ${!t.done ? `ondblclick="event.stopPropagation();renameTask(${t.id})" title="Double-click to rename"` : ''}>${esc(t.name)}</div>
+      <div class="task-name" ${!t.done ? `ondblclick="event.stopPropagation();renameTask(${t.id})" title="Double-click to rename"` : ''}>${esc(t.name)}${streakWarn}</div>
       <div class="task-meta">${srcTag}${sessTag}</div>
       ${pct>0?`<div class="time-bar"><div class="time-bar-fill" style="width:${pct}%"></div></div>`:''}
     </div>
@@ -2306,6 +2487,7 @@ function renderTaskCard(t) {
         ${[15,25,30,45,60].map(m=>`<button class="time-quick-btn" onclick="event.stopPropagation();setTaskTime(${t.id},${m});closeTE(${t.id})">${m}m</button>`).join('')}
       </div>
       <div class="time-badge" onclick="event.stopPropagation();toggleTE(${t.id})" title="Click to change time">${fmtSecs(t.secsRemaining)}</div>
+      ${moonBtn}
       ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? '⏸' : '▶'}</button>` : ''}
       ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">✎</button>` : ''}
       <button class="btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</button>
@@ -2345,16 +2527,19 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
 
 function renderTasks() {
   renderCategoryPicker();
+  renderMeta();
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
     list.innerHTML = `<div class="empty-msg"><div class="big">📋</div>Add tasks above or import from Google Tasks<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
     return;
   }
-  const active = tasks.filter(t=>!t.done);
-  const done   = tasks.filter(t=>t.done);
+  // Split: visible (not done, not hidden-today) vs hidden-today vs done.
+  const visible = tasks.filter(t => !t.done && !isHiddenToday(t));
+  const hidden  = tasks.filter(t => !t.done &&  isHiddenToday(t));
+  const done    = tasks.filter(t =>  t.done);
 
   if (singleFocus) {
-    const focusTask = active.find(x => x.id === activeId) || active[0];
+    const focusTask = visible.find(x => x.id === activeId) || visible[0];
     if (!focusTask) {
       list.innerHTML = `<div class="empty-msg"><div class="big">✓</div>All tasks done!<br><span style="font-size:11px;color:var(--text3)">Turn off Focus Mode to see completed tasks</span></div>`;
       return;
@@ -2368,7 +2553,7 @@ function renderTasks() {
   const html = [];
 
   for (const cat of sortedCats) {
-    const groupTasks = active.filter(t => t.categoryId === cat.id);
+    const groupTasks = visible.filter(t => t.categoryId === cat.id);
     if (groupTasks.length === 0) continue;
     html.push(`<div class="cat-group" data-cat-id="${cat.id}">`);
     html.push(renderCategoryHeader(cat.id, cat.name, cat.color, groupTasks, cat.collapsed, false));
@@ -2380,13 +2565,31 @@ function renderTasks() {
     html.push('</div>');
   }
 
-  const uncatTasks = active.filter(t => !t.categoryId);
+  const uncatTasks = visible.filter(t => !t.categoryId);
   if (uncatTasks.length > 0) {
     html.push(`<div class="cat-group" data-cat-id="__uncat">`);
     html.push(renderCategoryHeader('__uncat', 'Uncategorized', 'var(--text3)', uncatTasks, uncatCollapsed, true));
     if (!uncatCollapsed) {
       html.push('<div class="cat-body">');
       html.push(uncatTasks.map(renderTaskCard).join(''));
+      html.push('</div>');
+    }
+    html.push('</div>');
+  }
+
+  // "Not today" section — collapsed by default, kept visible so ADHD object
+  // permanence is preserved (out of sight = forgotten).
+  if (hidden.length > 0) {
+    const chev = notTodayCollapsed ? '▸' : '▾';
+    html.push(`<div class="cat-group not-today-group" data-cat-id="__nottoday">`);
+    html.push(`<div class="cat-header ${notTodayCollapsed?'collapsed':''}" onclick="toggleNotTodayCollapsed()">
+      <span class="cat-toggle">${chev}</span>
+      <span class="cat-name">🌙 Not today</span>
+      <span class="cat-meta">${hidden.length} hidden · returns tomorrow</span>
+    </div>`);
+    if (!notTodayCollapsed) {
+      html.push('<div class="cat-body">');
+      html.push(hidden.map(renderTaskCard).join(''));
       html.push('</div>');
     }
     html.push('</div>');
@@ -2403,6 +2606,12 @@ function renderTasks() {
 
   list.innerHTML = html.join('');
   attachDragHandlers();
+}
+
+function toggleNotTodayCollapsed() {
+  notTodayCollapsed = !notTodayCollapsed;
+  try { localStorage.setItem('focustimer_nottoday_collapsed', notTodayCollapsed ? '1' : '0'); } catch(e) {}
+  renderTasks();
 }
 function toggleTE(id) {
   document.querySelectorAll('.inline-time-edit').forEach(el=>{if(el.id!=='te_'+id)el.classList.remove('open');});
@@ -2914,6 +3123,104 @@ function dayLabel(ts) {
 }
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── PHASE 1: DAY HELPERS ──
+function todayKey() { return dayKey(Date.now()); }
+function yesterdayKey() { return dayKey(Date.now() - 86400000); }
+
+// ── PHASE 1: UNDO ──
+function showUndo(msg, undoFn) {
+  // Replace any in-flight undo (one slot only — keeps UX simple).
+  if (undoEntry && undoEntry.timer) clearTimeout(undoEntry.timer);
+  undoEntry = { msg, undoFn };
+  const toast = document.getElementById('undoToast');
+  document.getElementById('undoMsg').textContent = msg;
+  toast.classList.add('open');
+  undoEntry.timer = setTimeout(hideUndo, 5000);
+}
+function hideUndo() {
+  const toast = document.getElementById('undoToast');
+  if (toast) toast.classList.remove('open');
+  if (undoEntry && undoEntry.timer) clearTimeout(undoEntry.timer);
+  undoEntry = null;
+}
+function runUndo() {
+  if (!undoEntry) return;
+  const fn = undoEntry.undoFn;
+  hideUndo();
+  try { fn(); } catch(e) { console.error('undo failed', e); }
+}
+
+// ── PHASE 1: NOT TODAY ──
+// Auto-clear notToday flags whose dayKey isn't today anymore.
+// Called on load + on visibilitychange so reopening the app after midnight
+// reveals the hidden tasks without manual action.
+function clearExpiredNotToday() {
+  const today = todayKey();
+  let mutated = false;
+  for (const t of tasks) {
+    if (t.notTodayDayKey && t.notTodayDayKey !== today) {
+      t.notTodayDayKey = null;
+      mutated = true;
+    }
+  }
+  if (mutated) bumpDataTimestamp();
+}
+function toggleNotToday(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  const today = todayKey();
+  if (t.notTodayDayKey === today) {
+    // Un-hide. Streak stays — user changing their mind shouldn't lose the signal.
+    t.notTodayDayKey = null;
+  } else {
+    // Hide. Update streak: consecutive day → +1, gap → reset to 1.
+    const last = t.lastHiddenDayKey;
+    if (last === yesterdayKey()) {
+      t.notTodayStreak = (t.notTodayStreak || 0) + 1;
+    } else if (last !== today) {
+      t.notTodayStreak = 1;
+    }
+    t.notTodayDayKey = today;
+    t.lastHiddenDayKey = today;
+  }
+  bumpDataTimestamp();
+  renderTasks(); updateStats(); renderMeta(); saveAll();
+}
+function isHiddenToday(t) {
+  return t.notTodayDayKey === todayKey();
+}
+
+// ── PHASE 1: MIT ──
+function toggleMIT(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  const wasMIT = !!t.isMIT;
+  // Exclusive: clear all others first.
+  for (const x of tasks) x.isMIT = false;
+  t.isMIT = !wasMIT;
+  bumpDataTimestamp();
+  renderTasks(); saveAll();
+}
+
+// ── PHASE 1: META (date + total) ──
+function renderMeta() {
+  const dateEl = document.getElementById('metaDate');
+  const totalEl = document.getElementById('metaTotal');
+  if (!dateEl || !totalEl) return;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString(undefined, {
+    weekday: 'long', month: 'short', day: 'numeric'
+  });
+  dateEl.textContent = dateStr;
+
+  // Visible (not done, not hidden today) tasks count for the total.
+  const visible = tasks.filter(t => !t.done && !isHiddenToday(t));
+  const totalSecs = visible.reduce((s, t) => s + (t.secsRemaining || 0), 0);
+  const count = visible.length;
+  const timeStr = totalSecs > 0 ? fmtSecs(totalSecs) : '0m';
+  totalEl.innerHTML = `${count} task${count===1?'':'s'} · <b>${timeStr}</b> total`;
+}
+
 // ── SOUND ──
 // Short MP3s from /sounds; cached so rapid replays don't restart the network fetch.
 // play() may reject before the user's first gesture (browser autoplay policy);
@@ -2961,10 +3268,20 @@ loadAll();
   }
   const uc = localStorage.getItem('focustimer_uncat_collapsed');
   if (uc === '1') uncatCollapsed = true;
+  const ntc = localStorage.getItem('focustimer_nottoday_collapsed');
+  if (ntc === '0') notTodayCollapsed = false;
 })();
+clearExpiredNotToday();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
 renderTasks(); updateStats(); renderActivePill();
 renderClock();
+renderMeta();
+// Live-refresh meta date once a minute so the weekday rolls over without a reload.
+setInterval(() => {
+  // Cheap: also catches snoozed tasks that auto-return after midnight.
+  clearExpiredNotToday();
+  renderMeta();
+}, 60000);
 
 // memo: bind once
 (function bindMemo() {
@@ -2987,6 +3304,14 @@ setInterval(saveAll, 30000); // auto-save every 30s
 // wall-clock anchor immediately — no waiting up to a second for the next interval.
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && running) tick();
+  // Returning from background after midnight should reveal hidden-today tasks.
+  if (!document.hidden) {
+    const before = tasks.filter(isHiddenToday).length;
+    clearExpiredNotToday();
+    const after = tasks.filter(isHiddenToday).length;
+    if (after !== before) { renderTasks(); }
+    renderMeta();
+  }
 });
 
 // Restore sync if a code was saved on this device
