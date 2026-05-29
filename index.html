@@ -1479,6 +1479,7 @@ let importDefaultMin = 25, quickMin = 25;
 let darkMode = true;
 let singleFocus = false;
 let notTodayCollapsed = true;
+let doneCollapsed = true;
 
 // ── PHASE 1: UNDO ──
 // Stack of pending undo actions. Only the most recent is exposed via the toast,
@@ -2603,11 +2604,14 @@ function renderTasks() {
   }
 
   if (done.length > 0) {
+    const chev = doneCollapsed ? '▸' : '▾';
     html.push(`<div class="cat-group done-group" data-cat-id="__done">`);
-    html.push(`<div class="cat-header done-header"><span class="cat-toggle">✓</span><span class="cat-name">Completed</span><span class="cat-meta">${done.length} task${done.length===1?'':'s'}</span></div>`);
-    html.push('<div class="cat-body">');
-    html.push(done.map(renderTaskCard).join(''));
-    html.push('</div>');
+    html.push(`<div class="cat-header done-header ${doneCollapsed?'collapsed':''}" onclick="toggleDoneCollapsed()"><span class="cat-toggle">${chev}</span><span class="cat-name">✓ Completed</span><span class="cat-meta">${done.length} task${done.length===1?'':'s'}</span></div>`);
+    if (!doneCollapsed) {
+      html.push('<div class="cat-body">');
+      html.push(done.map(renderTaskCard).join(''));
+      html.push('</div>');
+    }
     html.push('</div>');
   }
 
@@ -2618,6 +2622,11 @@ function renderTasks() {
 function toggleNotTodayCollapsed() {
   notTodayCollapsed = !notTodayCollapsed;
   try { localStorage.setItem('focustimer_nottoday_collapsed', notTodayCollapsed ? '1' : '0'); } catch(e) {}
+  renderTasks();
+}
+function toggleDoneCollapsed() {
+  doneCollapsed = !doneCollapsed;
+  try { localStorage.setItem('focustimer_done_collapsed', doneCollapsed ? '1' : '0'); } catch(e) {}
   renderTasks();
 }
 function toggleTE(id) {
@@ -3277,6 +3286,8 @@ loadAll();
   if (uc === '1') uncatCollapsed = true;
   const ntc = localStorage.getItem('focustimer_nottoday_collapsed');
   if (ntc === '0') notTodayCollapsed = false;
+  const dc = localStorage.getItem('focustimer_done_collapsed');
+  if (dc === '0') doneCollapsed = false;
 })();
 clearExpiredNotToday();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
