@@ -1038,6 +1038,8 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 .panel-meta .meta-total b { color: var(--text2); font-weight: 600; }
 
 /* ── PHASE 1: MIT chip (yellow "MIT" text, bold, prominent) ── */
+/* Hidden by default — only the active MIT card shows it always; other
+   cards reveal it on hover so the user can still promote them. */
 .btn-mit {
   background: rgba(241,196,15,0.08);
   border: 1.5px solid rgba(241,196,15,0.25);
@@ -1046,11 +1048,11 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
   font-family: 'DM Sans', sans-serif;
   font-size: 10px; font-weight: 700; letter-spacing: 1px;
   padding: 3px 6px; line-height: 1;
-  color: rgba(241,196,15,0.55); opacity: 0.5;
+  color: rgba(241,196,15,0.55); opacity: 0;
   transition: all 0.15s;
   display: flex; align-items: center;
 }
-.task-card:hover .btn-mit { opacity: 0.85; }
+.task-card:hover .btn-mit { opacity: 0.7; }
 .btn-mit:hover { transform: scale(1.08); opacity: 1; }
 .btn-mit.active {
   opacity: 1;
