@@ -2842,7 +2842,7 @@ function mapZoomAt(vbX, vbY, factor) {
   mapView = clampMapView({
     x: vbX - (vbX - mapView.x) * r,
     y: vbY - (vbY - mapView.y) * r,
-    w: newW, h: mapView.h * r,
+    w: newW, // h is derived from w by clampMapView (keeps aspect)
   });
   applyMapView();
 }
@@ -2874,6 +2874,8 @@ function cancelMapDrag() {
   if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging');
   const mq = svg.querySelector('.map-marquee'); if (mq) mq.remove();
   svg.classList.remove('map-dragging'); svg.classList.remove('map-panning');
+  svg.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
+  svg.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
   const reRender = (mapDrag.kind === 'peak' || mapDrag.kind === 'range');
   mapDrag = null;
   if (reRender) renderMap();
@@ -2906,36 +2908,6 @@ const inBox = (z, px, py) => px >= z.x && px <= z.x + z.w && py >= z.y && py <= 
 function inTrash(px, py) { return inBox(MAP_TRASH, px, py); }
 function inCopy(px, py)  { return inBox(MAP_COPY, px, py); }
 
-// ── Organic range hull: convex hull → expand → smooth (replaces the boxy rect) ──
-function convexHull(pts) {
-  if (pts.length < 3) return pts.slice();
-  const p = pts.slice().sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
-  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-  const lower = [];
-  for (const pt of p) { while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], pt) <= 0) lower.pop(); lower.push(pt); }
-  const upper = [];
-  for (let i = p.length - 1; i >= 0; i--) { const pt = p[i]; while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], pt) <= 0) upper.pop(); upper.push(pt); }
-  lower.pop(); upper.pop();
-  const h = lower.concat(upper);
-  return h.length >= 3 ? h : pts.slice();
-}
-function expandHull(pts, pad) {
-  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-  return pts.map(p => { const dx = p.x - cx, dy = p.y - cy, len = Math.hypot(dx, dy) || 1; return { x: p.x + dx / len * pad, y: p.y + dy / len * pad }; });
-}
-// Closed path with every corner rounded (midpoint → quadratic-through-vertex → midpoint).
-function smoothClosedPath(pts) {
-  const n = pts.length;
-  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-  let m0 = mid(pts[n-1], pts[0]);
-  let d = `M ${m0.x.toFixed(1)} ${m0.y.toFixed(1)}`;
-  for (let i = 0; i < n; i++) {
-    const cur = pts[i], nxt = pts[(i+1) % n], m = mid(cur, nxt);
-    d += ` Q ${cur.x.toFixed(1)} ${cur.y.toFixed(1)} ${m.x.toFixed(1)} ${m.y.toFixed(1)}`;
-  }
-  return d + ' Z';
-}
 
 function mclamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function autoX(mins) { return mclamp(0.06 + 0.88 * Math.min(mins || 0, WORKDAY_MIN) / WORKDAY_MIN, 0.06, 0.94); }
@@ -3001,19 +2973,6 @@ function rangeRidgeD(members, minX, maxX, baseY) {
   for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
   return d;
 }
-// Small multi-peak silhouette used as a category (range) marker. Baseline at y+h.
-function rangeIconD(x, y, w, h) {
-  w = w || 62; h = h || 18; const b = y + h;
-  return `M ${x.toFixed(1)} ${b.toFixed(1)}`
-       + ` L ${(x + w*0.15).toFixed(1)} ${(y + h*0.30).toFixed(1)}`
-       + ` L ${(x + w*0.28).toFixed(1)} ${(y + h*0.62).toFixed(1)}`
-       + ` L ${(x + w*0.46).toFixed(1)} ${y.toFixed(1)}`
-       + ` L ${(x + w*0.60).toFixed(1)} ${(y + h*0.50).toFixed(1)}`
-       + ` L ${(x + w*0.74).toFixed(1)} ${(y + h*0.18).toFixed(1)}`
-       + ` L ${(x + w*0.88).toFixed(1)} ${(y + h*0.58).toFixed(1)}`
-       + ` L ${(x + w).toFixed(1)} ${b.toFixed(1)} Z`;
-}
-
 // Faint axis guides: vertical duration ticks (with labels) + Y "earlier/later" caps.
 function mapAxisLayer() {
   const left = MAP_PAD, right = MAP_VB_W - MAP_PAD, top = MAP_PAD, bottom = MAP_VB_H - MAP_PAD;
@@ -3036,6 +2995,7 @@ function renderMap() {
   const hidden  = tasks.filter(t => !t.done &&  isHiddenToday(t));
   const peaksData = visible.concat(hidden); // visible first, then misted
   const n = peaksData.length;
+  mapRangeBoxes = []; // reset up-front so the n===0 path can't leave stale ranges
 
   // World backdrop (fills the whole pannable area) + a subtly brighter content panel.
   const bg = `<rect class="map-world-bg" x="${WORLD_X.toFixed(1)}" y="${WORLD_Y.toFixed(1)}" width="${WORLD_W.toFixed(1)}" height="${WORLD_H.toFixed(1)}"/>`
@@ -3063,7 +3023,6 @@ function renderMap() {
   // ── RANGE = a wide, low ridge line (line-art) spanning the category's peaks,
   // with the name centered beneath it. Acts as a quiet background; the whole
   // ridge+name is the drag/rename handle. We cache a bbox for drop hit-testing.
-  mapRangeBoxes = [];
   let ranges = '';
   const sortedCats = categories.slice().sort((a, b) => a.order - b.order);
   for (const cat of sortedCats) {
@@ -3182,6 +3141,9 @@ function clientToVB(clientX, clientY, svg, ctm) {
 
 function onMapPointerDown(e) {
   mapPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // Safety net: a fresh first pointer should never have a live drag. If one
+  // lingers (a previous pointerup was lost / capture failed), clean it up first.
+  if (mapDrag && mapPointers.size === 1) cancelMapDrag();
   if (mapPointers.size >= 2) { // second finger → start a pinch, abort any single drag
     e.preventDefault();
     cancelMapDrag();
@@ -3246,7 +3208,7 @@ function onMapPointerMove(e) {
     const ctm = svg0.getScreenCTM();
     const dxs = pi.midX - mapPinch.prevMidX, dys = pi.midY - mapPinch.prevMidY;
     if (ctm && (dxs || dys)) {
-      mapView = clampMapView({ x: mapView.x - dxs / ctm.a, y: mapView.y - dys / ctm.d, w: mapView.w, h: mapView.h });
+      mapView = clampMapView({ x: mapView.x - dxs / ctm.a, y: mapView.y - dys / ctm.d, w: mapView.w });
       applyMapView();
     }
     mapPinch.prevDist = pi.dist; mapPinch.prevMidX = pi.midX; mapPinch.prevMidY = pi.midY;
@@ -3475,7 +3437,8 @@ function mergeTasks(draggedId, targetId, clientX, clientY) {
     if (!input) { renderMap(); return; }
     wireMapInput(input, (val) => {
       input.remove();
-      const name = (val || '').trim() || 'New range';
+      const name = (val || '').trim();
+      if (!name) { renderMap(); return; } // blur/empty = cancel — don't create a stray category
       const cat = addCategory(name);  // returns existing-or-new category
       if (cat) { a.categoryId = cat.id; b.categoryId = cat.id; }
       saveAll(); renderMap();
@@ -3509,13 +3472,14 @@ function bindMapHandlersOnce() {
   const panReady = (e) => { svg.classList.toggle('pan-ready', viewMode === 'map' && !mapDrag && (e.ctrlKey || e.metaKey)); };
   window.addEventListener('keydown', panReady);
   window.addEventListener('keyup', panReady);
-  window.addEventListener('blur', () => svg.classList.remove('pan-ready'));
+  window.addEventListener('blur', () => { svg.classList.remove('pan-ready'); if (mapDrag) cancelMapDrag(); mapPointers.clear(); mapPinch = null; });
   applyMapView();
   mapHandlersBound = true;
 }
 
-// Keyboard: copy / paste / delete the selected peak (Win: Ctrl, Mac: ⌘). M+.
-let mapClipboard = null;
+// Keyboard: copy / paste / delete (Win: Ctrl, Mac: ⌘). Operates on the
+// multi-selection when there is one, otherwise the active peak.
+let mapClipboard = null; // array of task snapshots, or null
 function onMapKeydown(e) {
   if (viewMode !== 'map') return;
   const ae = document.activeElement;
@@ -3523,33 +3487,66 @@ function onMapKeydown(e) {
   const mod = e.metaKey || e.ctrlKey;
   const k = e.key.toLowerCase();
   if (mod && k === 'c') {
-    if (activeId != null) { const t = tasks.find(x => x.id === activeId); if (t) { mapClipboard = JSON.parse(JSON.stringify(t)); e.preventDefault(); } }
+    const ids = mapSelection.size ? [...mapSelection] : (activeId != null ? [activeId] : []);
+    const ts = ids.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+    if (ts.length) { mapClipboard = ts.map(t => JSON.parse(JSON.stringify(t))); e.preventDefault(); }
   } else if (mod && k === 'v') {
-    if (mapClipboard) { pasteFromClipboard(); e.preventDefault(); }
+    if (mapClipboard && mapClipboard.length) { pasteFromClipboard(); e.preventDefault(); }
   } else if (k === 'delete' || k === 'backspace') {
-    if (mapSelection.size) { const ids = [...mapSelection]; mapSelection.clear(); ids.forEach(id => deleteTask(id)); e.preventDefault(); }
-    else if (activeId != null) { deleteTask(activeId); e.preventDefault(); }
+    if (mapSelection.size) { mapDeleteTasks([...mapSelection]); e.preventDefault(); }
+    else if (activeId != null) {
+      const at = tasks.find(t => t.id === activeId);
+      if (at && !at.done && !isHiddenToday(at)) { deleteTask(activeId); e.preventDefault(); } // only the visible active peak
+    }
   } else if (k === 'escape') {
     if (mapSelection.size) { mapSelection.clear(); renderMap(); e.preventDefault(); }
   }
 }
+// Batch-delete with a SINGLE combined undo (looping deleteTask would leave only
+// the last one undoable — silent data loss). Mirrors clearDone().
+function mapDeleteTasks(ids) {
+  const idSet = new Set(ids);
+  const removed = tasks.map((t, idx) => ({ t, idx })).filter(x => idSet.has(x.t.id));
+  if (!removed.length) return;
+  flushElapsed();
+  const removingActive = removed.some(x => x.t.id === activeId);
+  tasks = tasks.filter(t => !idSet.has(t.id));
+  mapSelection.clear();
+  if (removingActive) {
+    pauseTimer();
+    const next = tasks.find(x => !x.done);
+    if (next) { activeId = next.id; totalSec = next.mins * 60; remaining = next.secsRemaining > 0 ? next.secsRemaining : next.mins * 60; }
+    else { activeId = null; remaining = 0; totalSec = 1; }
+    updateDisplay(); updateRing(); updateTopBar(); renderActivePill();
+  }
+  renderTasks(); updateStats(); renderDots(); saveAll();
+  const nn = removed.length;
+  showUndo(`Deleted ${nn} task${nn === 1 ? '' : 's'}`, () => {
+    removed.sort((a, b) => a.idx - b.idx).forEach(({ t, idx }) => tasks.splice(Math.min(idx, tasks.length), 0, t));
+    bumpDataTimestamp(); renderTasks(); updateStats(); renderDots(); saveAll();
+  });
+}
 function pasteFromClipboard() {
-  if (!mapClipboard) return;
-  const copy = JSON.parse(JSON.stringify(mapClipboard));
-  copy.id = Date.now() + Math.random();
-  copy.isMIT = false; copy.done = false;
-  copy.secsRemaining = copy.mins * 60; copy.secsSpent = 0; copy.sessions = 0;
-  copy.createdAt = Date.now();
-  copy.notTodayDayKey = null; copy.lastHiddenDayKey = null; copy.notTodayStreak = 0;
-  if (typeof copy.mapX === 'number') copy.mapX = mclamp(copy.mapX + 0.05, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
-  if (typeof copy.mapY === 'number') copy.mapY = mclamp(copy.mapY + 0.05, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
-  // If the category was deleted since copying, drop it to uncategorized.
-  if (copy.categoryId && !categories.find(c => c.id === copy.categoryId)) copy.categoryId = null;
-  tasks.push(copy);
-  activeId = copy.id;
+  if (!mapClipboard || !mapClipboard.length) return;
+  const newIds = [];
+  for (const src of mapClipboard) {
+    const copy = JSON.parse(JSON.stringify(src));
+    copy.id = Date.now() + Math.random();
+    copy.isMIT = false; copy.done = false;
+    copy.secsRemaining = (copy.mins || 0) * 60; copy.secsSpent = 0; copy.sessions = 0;
+    copy.createdAt = Date.now();
+    copy.notTodayDayKey = null; copy.lastHiddenDayKey = null; copy.notTodayStreak = 0;
+    if (typeof copy.mapX === 'number') copy.mapX = mclamp(copy.mapX + 0.05, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
+    if (typeof copy.mapY === 'number') copy.mapY = mclamp(copy.mapY + 0.05, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
+    if (copy.categoryId && !categories.find(c => c.id === copy.categoryId)) copy.categoryId = null;
+    tasks.push(copy); newIds.push(copy.id);
+  }
+  activeId = newIds[newIds.length - 1];
+  mapSelection = new Set(newIds); // select the pasted copies
   renderTasks(); updateStats(); renderActivePill(); saveAll();
-  showUndo(`Pasted "${copy.name}"`, () => {
-    tasks = tasks.filter(t => t.id !== copy.id);
+  const nn = newIds.length;
+  showUndo(`Pasted ${nn} task${nn === 1 ? '' : 's'}`, () => {
+    const s = new Set(newIds); tasks = tasks.filter(t => !s.has(t.id));
     bumpDataTimestamp(); renderTasks(); updateStats(); saveAll();
   });
 }
