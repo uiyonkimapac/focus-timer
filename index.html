@@ -3405,8 +3405,11 @@ function onMapPointerUp(e) {
 function peaksInBox(x1, y1, x2, y2) {
   const ids = [];
   document.querySelectorAll('#mapSvg .map-peak').forEach(el => {
+    const id = Number(el.getAttribute('data-task-id'));
+    const t = tasks.find(x => x.id === id);
+    if (t && isHiddenToday(t)) return; // don't marquee-select snoozed (misted) peaks
     const cx = parseFloat(el.getAttribute('data-cx')), cy = parseFloat(el.getAttribute('data-cy'));
-    if (cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) ids.push(Number(el.getAttribute('data-task-id')));
+    if (cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) ids.push(id);
   });
   return ids;
 }
@@ -3423,7 +3426,7 @@ function findPeakAt(px, py, excludeId) {
     const id = Number(el.getAttribute('data-task-id'));
     if (id === excludeId) return;
     const t = tasks.find(x => x.id === id);
-    if (!t) return;
+    if (!t || isHiddenToday(t)) return; // don't merge onto a snoozed (misted) peak
     const cx = parseFloat(el.getAttribute('data-cx')), cy = parseFloat(el.getAttribute('data-cy'));
     const bW = peakWidth(t), bH = peakHeight(t);
     const overlapX = (px - aW) < (cx + bW + m) && (px + aW) > (cx - bW - m);
@@ -3512,7 +3515,8 @@ function onMapKeydown(e) {
       if (at && !at.done && !isHiddenToday(at)) { deleteTask(activeId); e.preventDefault(); } // only the visible active peak
     }
   } else if (k === 'escape') {
-    if (mapSelection.size) { mapSelection.clear(); renderMap(); e.preventDefault(); }
+    if (mapDrag) { cancelMapDrag(); e.preventDefault(); }        // abort an in-flight drag
+    else if (mapSelection.size) { mapSelection.clear(); renderMap(); e.preventDefault(); }
   }
 }
 // Batch-delete with a SINGLE combined undo (looping deleteTask would leave only
