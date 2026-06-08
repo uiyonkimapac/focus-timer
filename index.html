@@ -432,20 +432,22 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 .map-peak.dragging .map-peak-label { opacity: 0; }
 .map-range.drop-target .map-range-ridge { opacity: 1; stroke-width: 4; }
 .map-peak.merge-target .map-peak-body { stroke: var(--green); stroke-width: 3; filter: drop-shadow(0 0 7px var(--green)); }
-.map-trash { opacity: 0; transition: opacity 0.15s; pointer-events: none; }
-#mapSvg.map-dragging .map-trash { opacity: 1; }
-.map-trash-box { fill: var(--red-soft); stroke: var(--red); stroke-width: 1.5; stroke-dasharray: 5 4; }
-.map-trash.over .map-trash-box { fill: var(--red); fill-opacity: 0.30; stroke-dasharray: none; stroke-width: 2.5; }
-.map-trash-icon { font-size: 30px; }
-.map-trash.over .map-trash-icon { font-size: 34px; }
-.map-trash-label { fill: var(--red); font-family: 'DM Sans', sans-serif; font-size: 11px; }
-.map-copy { opacity: 0; transition: opacity 0.15s; pointer-events: none; }
-#mapSvg.map-dragging .map-copy { opacity: 1; }
-.map-copy-box { fill: var(--green-soft); stroke: var(--green); stroke-width: 1.5; stroke-dasharray: 5 4; }
-.map-copy.over .map-copy-box { fill: var(--green); fill-opacity: 0.30; stroke-dasharray: none; stroke-width: 2.5; }
-.map-copy-icon { font-size: 28px; fill: var(--green); }
-.map-copy.over .map-copy-icon { font-size: 32px; }
-.map-copy-label { fill: var(--green); font-family: 'DM Sans', sans-serif; font-size: 11px; }
+/* Drop zones: fixed overlays anchored (in JS) to the visible bottom of the map,
+   so they stay on-screen at any zoom / scroll. Shown only while dragging a peak. */
+.map-dropzone {
+  position: fixed; z-index: 30;
+  width: 92px; height: 78px; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-size: 26px; line-height: 1; border: 1.5px dashed;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s, background 0.12s, transform 0.12s;
+}
+.map-dropzone span { font-size: 11px; font-family: 'DM Sans', sans-serif; }
+.map-dz-copy  { color: var(--green); border-color: var(--green); background: var(--green-soft); }
+.map-dz-trash { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+#mapWrap.dropzones-on .map-dropzone { opacity: 1; }
+.map-dropzone.over { border-style: solid; transform: scale(1.08); }
+.map-dz-copy.over  { background: var(--green); color: #fff; }
+.map-dz-trash.over { background: var(--red); color: #fff; }
 .map-range-label { cursor: pointer; }
 .map-range-marker:hover .map-range-ridge { opacity: 0.95; }
 .map-range-marker:hover .map-range-label { opacity: 1; }
@@ -1499,6 +1501,8 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
           <div class="map-zoom-pct" id="mapZoomPct" title="Zoom (100% = whole map)">100%</div>
           <button class="map-zoom-btn" id="mapZoomOut" onclick="mapZoomStep(-1)" title="Zoom out">−</button>
         </div>
+        <div class="map-dropzone map-dz-copy" id="mapCopy">⧉<span>copy</span></div>
+        <div class="map-dropzone map-dz-trash" id="mapTrash">🗑<span>delete</span></div>
       </div>
     </div>
 
@@ -2873,7 +2877,7 @@ function cancelMapDrag() {
   try { svg.releasePointerCapture(mapDrag.pointerId); } catch(_) {}
   if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging');
   const mq = svg.querySelector('.map-marquee'); if (mq) mq.remove();
-  svg.classList.remove('map-dragging'); svg.classList.remove('map-panning');
+  svg.classList.remove('map-panning'); hideDropZones();
   svg.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
   svg.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
   const reRender = (mapDrag.kind === 'peak' || mapDrag.kind === 'range');
@@ -2901,12 +2905,33 @@ function showHud(ids, labelPrefix) {
 }
 function hideHud() { const hud = document.getElementById('mapHud'); if (hud) hud.style.display = 'none'; }
 function refreshHud() { if (mapSelection.size) showHud([...mapSelection]); else hideHud(); }
-// Drag drop-zones in viewBox units: trash bottom-right, copy bottom-left (M3).
-const MAP_TRASH = { x: MAP_VB_W - 116, y: MAP_VB_H - 112, w: 96, h: 92 };
-const MAP_COPY  = { x: 20, y: MAP_VB_H - 112, w: 96, h: 92 };
-const inBox = (z, px, py) => px >= z.x && px <= z.x + z.w && py >= z.y && py <= z.y + z.h;
-function inTrash(px, py) { return inBox(MAP_TRASH, px, py); }
-function inCopy(px, py)  { return inBox(MAP_COPY, px, py); }
+// Drop zones are fixed HTML overlays (screen space) so they stay reachable at
+// any zoom/pan. Hit-test the pointer's client coords against the zone elements.
+function overDropZone(clientX, clientY) {
+  for (const [id, kind] of [['mapCopy', 'copy'], ['mapTrash', 'trash']]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return kind;
+  }
+  return null;
+}
+function showDropZones() {
+  const w = document.getElementById('mapWrap'); if (!w) return;
+  // Anchor the zones to the VISIBLE bottom of the map area (the wrap can be taller
+  // than the viewport), so they're always reachable. copy = left, delete = centre.
+  const r = w.getBoundingClientRect();
+  const top = Math.round(Math.min(r.bottom, window.innerHeight) - 78 - 16);
+  const copy = document.getElementById('mapCopy'), trash = document.getElementById('mapTrash');
+  if (copy)  { copy.style.top = top + 'px';  copy.style.left = Math.round(r.left + 16) + 'px'; }
+  if (trash) { trash.style.top = top + 'px'; trash.style.left = Math.round(r.left + r.width / 2 - 46) + 'px'; }
+  w.classList.add('dropzones-on');
+}
+function hideDropZones() {
+  const w = document.getElementById('mapWrap'); if (w) w.classList.remove('dropzones-on');
+  document.getElementById('mapTrash')?.classList.remove('over');
+  document.getElementById('mapCopy')?.classList.remove('over');
+}
 
 
 function mclamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -3111,21 +3136,8 @@ function renderMap() {
       + `</g>`;
   }
 
-  // ── OVERLAYS (drop-zones — only visible while dragging a peak, see CSS) ──
-  const tx = MAP_TRASH.x, ty = MAP_TRASH.y, tw = MAP_TRASH.w, th = MAP_TRASH.h;
-  const cx2 = MAP_COPY.x, cy2 = MAP_COPY.y, cw2 = MAP_COPY.w, ch2 = MAP_COPY.h;
-  const overlays = `<g class="map-copy">`
-    + `<rect class="map-copy-box" x="${cx2}" y="${cy2}" width="${cw2}" height="${ch2}" rx="14"/>`
-    + `<text class="map-copy-icon" x="${cx2 + cw2/2}" y="${cy2 + ch2/2 + 4}" text-anchor="middle">⧉</text>`
-    + `<text class="map-copy-label" x="${cx2 + cw2/2}" y="${cy2 + ch2 - 8}" text-anchor="middle">drop to copy</text>`
-    + `</g>`
-    + `<g class="map-trash">`
-    + `<rect class="map-trash-box" x="${tx}" y="${ty}" width="${tw}" height="${th}" rx="14"/>`
-    + `<text class="map-trash-icon" x="${tx + tw/2}" y="${ty + th/2 + 4}" text-anchor="middle">🗑</text>`
-    + `<text class="map-trash-label" x="${tx + tw/2}" y="${ty + th - 8}" text-anchor="middle">drop to delete</text>`
-    + `</g>`;
-
-  svg.innerHTML = html + capacity + ranges + peaks + overlays;
+  // (Trash/copy drop-zones are fixed HTML overlays — see #mapTrash/#mapCopy.)
+  svg.innerHTML = html + capacity + ranges + peaks;
   refreshHud();
   bindMapHandlersOnce();
 }
@@ -3220,7 +3232,7 @@ function onMapPointerMove(e) {
     const sdx = e.clientX - mapDrag.startClientX, sdy = e.clientY - mapDrag.startClientY;
     if (Math.hypot(sdx, sdy) < 4) return; // below threshold = still a click
     mapDrag.moved = true;
-    if (mapDrag.kind === 'peak') { mapDrag.g.classList.add('dragging'); if (svg) svg.classList.add('map-dragging'); } // reveals drop-zones
+    if (mapDrag.kind === 'peak') { mapDrag.g.classList.add('dragging'); showDropZones(); } // reveals drop-zones
   }
   const cur = clientToVB(e.clientX, e.clientY, svg, mapDrag.ctm);
   const dx = cur.x - mapDrag.startVB.x, dy = cur.y - mapDrag.startVB.y;
@@ -3258,11 +3270,11 @@ function onMapPointerMove(e) {
   mapDrag.g.setAttribute('transform', tf);
   showHud([mapDrag.id], 'Moving');
   const px = mapDrag.cx0 + dx, py = mapDrag.cy0 + dy;
-  const overTrash = inTrash(px, py), overCopy = inCopy(px, py);
-  const trashEl = svg.querySelector('.map-trash');
-  if (trashEl) trashEl.classList.toggle('over', overTrash);
-  const copyEl = svg.querySelector('.map-copy');
-  if (copyEl) copyEl.classList.toggle('over', overCopy);
+  // Drop-zone hit-test uses the cursor's SCREEN position (zones are fixed overlays).
+  const zone = overDropZone(e.clientX, e.clientY);
+  const overTrash = zone === 'trash', overCopy = zone === 'copy';
+  document.getElementById('mapTrash')?.classList.toggle('over', overTrash);
+  document.getElementById('mapCopy')?.classList.toggle('over', overCopy);
   // Live-highlight the peak we'd MERGE with (touching another mountain → merge).
   document.querySelectorAll('#mapSvg .map-peak.merge-target').forEach(p => p.classList.remove('merge-target'));
   const mergeId = (overTrash || overCopy) ? null : findPeakAt(px, py, mapDrag.id);
@@ -3315,8 +3327,8 @@ function onMapPointerUp(e) {
   const svg = document.getElementById('mapSvg');
   try { svg.releasePointerCapture(d.pointerId); } catch(_) {}
   if (d.kind === 'peak') d.g.classList.remove('dragging');
-  svg.classList.remove('map-dragging');
   svg.classList.remove('map-panning');
+  hideDropZones();
 
   // ── PAN: nothing to commit; a no-move click on empty just clears selection. ──
   if (d.kind === 'pan') {
@@ -3367,8 +3379,9 @@ function onMapPointerUp(e) {
   if (!t) { renderMap(); return; }
 
   const px = d.cx0 + dx, py = d.cy0 + dy;
-  if (inCopy(px, py))  { duplicateTask(d.id); return; }
-  if (inTrash(px, py)) { deleteTask(d.id); return; }
+  const zone = overDropZone(e.clientX, e.clientY);
+  if (zone === 'copy')  { duplicateTask(d.id); return; }
+  if (zone === 'trash') { deleteTask(d.id); return; }
 
   // Persist normalized position (clamped to the same inner margin renderMap uses).
   t.mapX = mclamp(px / MAP_VB_W, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
@@ -3462,7 +3475,7 @@ function bindMapHandlersOnce() {
   svg.addEventListener('pointercancel', (e) => {
     mapPointers.delete(e.pointerId);
     if (mapPinch && mapPointers.size < 2) mapPinch = null;
-    if (mapDrag) { if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging'); mapDrag = null; svg.classList.remove('map-dragging'); svg.classList.remove('map-panning'); const mq = svg.querySelector('.map-marquee'); if (mq) mq.remove(); renderMap(); }
+    if (mapDrag) { if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging'); mapDrag = null; svg.classList.remove('map-panning'); hideDropZones(); const mq = svg.querySelector('.map-marquee'); if (mq) mq.remove(); renderMap(); }
   });
   svg.addEventListener('dblclick', onMapDblClick);
   svg.addEventListener('wheel', onMapWheel, { passive: false });
