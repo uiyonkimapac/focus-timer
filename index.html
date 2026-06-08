@@ -29,6 +29,11 @@
   --blue-soft: rgba(41,128,185,0.20);
   --radius: 14px;
   --radius-sm: 8px;
+  /* Mountain Board (Map View) */
+  --map-bg: #0e1411;
+  --map-world-bg: #080a09;
+  --map-peak-fill: #e8f0ea;
+  --map-peak-stroke: rgba(0,0,0,0.30);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -371,6 +376,134 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   font-size: 12px; cursor: pointer; transition: all 0.18s;
 }
 .btn-small:hover { border-color: var(--red); color: var(--red); }
+/* ── View segment control (List | Map) ── */
+.view-seg {
+  display: inline-flex; padding: 2px; gap: 2px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.seg-btn {
+  padding: 5px 12px; border: none; background: transparent;
+  color: var(--text3); font-family: 'DM Sans', sans-serif;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  border-radius: 6px; transition: all 0.15s; white-space: nowrap;
+}
+.seg-btn:hover:not(.active) { color: var(--text2); }
+.seg-btn.active { background: var(--surface3); color: var(--text); font-weight: 600; }
+/* ── Mountain Board (Map View) ── */
+.map-wrap {
+  flex: 1; min-height: 320px;
+  position: relative; overflow: hidden;
+  padding: 0 28px 20px;
+}
+#mapSvg { width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
+#mapSvg.pan-ready { cursor: grab; }
+#mapSvg.map-panning { cursor: grabbing; }
+.map-world-bg { fill: var(--map-world-bg); }
+.map-bg { fill: var(--map-bg); }
+.map-axis-line { stroke: var(--border); stroke-width: 1; }
+.map-axis-tick { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 5; }
+.map-axis-label { fill: var(--text3); font-family: 'DM Mono', monospace; font-size: 13px; }
+.map-axis-cap { fill: var(--text3); font-family: 'DM Sans', sans-serif; font-size: 12px; letter-spacing: 0.5px; }
+.map-range-ridge { fill: none; stroke: var(--cat-color); stroke-width: 2.5; opacity: 0.65; stroke-linejoin: round; stroke-linecap: round; }
+/* Large grab zone for the range header — invisible until hovered. */
+.map-range-hit { fill: var(--cat-color); fill-opacity: 0; stroke: var(--cat-color); stroke-opacity: 0; stroke-width: 1.5; stroke-dasharray: 5 4; transition: fill-opacity 0.12s, stroke-opacity 0.12s; pointer-events: all; }
+.map-range-marker:hover .map-range-hit { fill-opacity: 0.08; stroke-opacity: 0.45; }
+.map-range-label { fill: var(--cat-color); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 3px; opacity: 0.85; text-transform: lowercase; }
+.map-peak { cursor: pointer; }
+.map-peak-body { fill: var(--map-peak-fill); stroke: var(--map-peak-stroke); stroke-width: 1; }
+.map-peak.has-cat .map-peak-body { fill: var(--cat-color); }
+.map-peak-cap { fill: rgba(255,255,255,0.85); }
+.map-peak-label { fill: var(--text2); font-family: 'DM Sans', sans-serif; font-size: 12px; text-anchor: middle; pointer-events: none; }
+.map-empty-label { fill: var(--text3); font-family: 'DM Sans', sans-serif; font-size: 14px; text-anchor: middle; }
+.map-peak.is-mit .map-peak-body { fill: #f1c40f; stroke: #b8860b; }
+.map-peak.misted { opacity: 0.32; }
+.map-peak.active .map-peak-body { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 8px var(--accent-glow)); }
+.map-peak-start { cursor: pointer; }
+.map-peak-start circle { fill: var(--accent); stroke: #fff; stroke-width: 1.5; }
+.map-peak-start text { fill: #fff; font-size: 14px; pointer-events: none; }
+.map-peak-done { cursor: pointer; }
+.map-peak-done circle { fill: var(--green); stroke: #fff; stroke-width: 1.5; }
+.map-peak-done text { fill: #fff; font-size: 14px; font-weight: 700; pointer-events: none; }
+.map-range-marker { cursor: grab; }
+.map-range-marker:active { cursor: grabbing; }
+.map-peak.dragging { cursor: grabbing; }
+.map-peak.dragging .map-peak-body { filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45)); }
+.map-peak.dragging .map-peak-label { opacity: 0; }
+.map-range.drop-target .map-range-ridge { opacity: 1; stroke-width: 4; }
+.map-peak.merge-target .map-peak-body { stroke: var(--green); stroke-width: 3; filter: drop-shadow(0 0 7px var(--green)); }
+/* Drop zones: fixed overlays anchored (in JS) to the visible bottom of the map,
+   so they stay on-screen at any zoom / scroll. Shown only while dragging a peak. */
+.map-dropzone {
+  position: fixed; z-index: 30;
+  width: 92px; height: 78px; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-size: 26px; line-height: 1; border: 1.5px dashed;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s, background 0.12s, transform 0.12s;
+}
+.map-dropzone span { font-size: 11px; font-family: 'DM Sans', sans-serif; }
+.map-dz-copy  { color: var(--green); border-color: var(--green); background: var(--green-soft); }
+.map-dz-trash { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+#mapWrap.dropzones-on .map-dropzone { opacity: 1; }
+.map-dropzone.over { border-style: solid; transform: scale(1.08); }
+.map-dz-copy.over  { background: var(--green); color: #fff; }
+.map-dz-trash.over { background: var(--red); color: #fff; }
+.map-range-label { cursor: pointer; }
+.map-range-marker:hover .map-range-ridge { opacity: 0.95; }
+.map-range-marker:hover .map-range-label { opacity: 1; }
+.map-peak.selected .map-peak-body { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.map-marquee { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }
+.map-hud {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6;
+  display: flex; gap: 14px; align-items: center;
+  background: var(--surface3); color: var(--text);
+  border: 1px solid var(--border2); border-radius: 999px;
+  padding: 7px 16px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35); pointer-events: none; white-space: nowrap;
+}
+.map-hud b { color: var(--accent); font-weight: 700; }
+.map-zoom {
+  position: absolute; right: 16px; bottom: 18px; z-index: 6;
+  display: flex; flex-direction: column; gap: 1px;
+  border-radius: var(--radius-sm); overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+}
+.map-zoom-btn {
+  width: 34px; height: 34px; border: none; cursor: pointer;
+  background: var(--surface3); color: var(--text);
+  font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 500; line-height: 1;
+  display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+}
+.map-zoom-pct {
+  background: var(--surface3); color: var(--text2);
+  font-family: 'DM Mono', monospace; font-size: 11px; text-align: center;
+  padding: 4px 0; user-select: none; pointer-events: none;
+}
+.map-zoom-btn:hover { background: var(--surface2); color: var(--accent); }
+.map-zoom-btn:disabled { opacity: 0.4; cursor: default; }
+.map-zoom-btn:disabled:hover { background: var(--surface3); color: var(--text); }
+.map-inline-input {
+  position: absolute; transform: translate(-50%, -50%); z-index: 5; min-width: 150px;
+  background: var(--surface3); color: var(--text);
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  padding: 6px 10px; font-family: 'DM Sans', sans-serif; font-size: 13px;
+  outline: none; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.map-overflow-band { fill: var(--red); opacity: 0.07; }
+.map-overflow-label { fill: var(--red); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; opacity: 0.85; }
+/* Subtle pulse on the running peak — motion-gated for accessibility. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes mapPeakPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.78; } }
+  .map-peak.running .map-peak-start circle { animation: mapPeakPulse 1.6s ease-in-out infinite; }
+}
+/* Light-theme map palette (dark values wash out on white). */
+body.light {
+  --map-bg: #eef2ee;
+  --map-world-bg: #dfe5e0;
+  --map-peak-fill: #3a4a40;
+  --map-peak-stroke: rgba(0,0,0,0.18);
+}
+body.light .map-peak-cap { fill: rgba(255,255,255,0.92); }
 .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .task-inp {
   flex: 1; background: var(--surface2);
@@ -955,6 +1088,16 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   .quick-times { gap: 4px; }
   .qt-btn { padding: 5px 10px; font-size: 11px; }
 
+  /* Map view: give the SVG a concrete height (parent is no longer flex:1 on
+     mobile) and enlarge in-SVG text so labels stay legible when scaled down. */
+  .map-wrap { padding: 0 8px 12px; min-height: 340px; height: 56vh; }
+  .map-axis-label, .map-axis-cap, .map-range-label, .map-peak-label { font-size: 17px; }
+  .view-seg { order: -1; }
+  /* Bigger touch targets + readable HUD on phones. */
+  .map-zoom { right: 12px; bottom: 14px; }
+  .map-zoom-btn { width: 44px; height: 44px; font-size: 24px; }
+  .map-hud { font-size: 13px; padding: 8px 14px; gap: 10px; top: 8px; }
+
   .task-card { padding: 10px 11px; gap: 9px; }
   .task-name { font-size: 13px; }
   .time-badge { padding: 3px 8px; font-size: 11px; }
@@ -1317,6 +1460,11 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
         <div class="panel-header">
           <span class="panel-title">Active Tasks</span>
           <div class="header-actions">
+            <div class="view-seg" role="tablist" aria-label="View mode">
+              <button class="seg-btn active" id="segList" onclick="setViewMode('list')" title="List view">≡ List</button>
+              <button class="seg-btn" id="segMap" onclick="setViewMode('map')" title="Map view">⛰ Map</button>
+            </div>
+            <button class="btn-small" id="btnGuides" onclick="toggleMapGuides()" title="Show/hide the time guides" style="display:none;">⊞ Guides</button>
             <button class="btn-small" id="btnFocus" onclick="toggleSingleFocus()" title="Show only the current task">◉ Focus Mode</button>
             <button class="btn-small" onclick="clearDone()">✓ Clear Done</button>
             <button class="btn-import" onclick="openImport()">
@@ -1345,6 +1493,17 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
         </div>
       </div>
       <div class="task-scroll" id="taskList" style="padding: 0 28px 20px;"></div>
+      <div class="map-wrap" id="mapWrap" style="display:none;">
+        <svg id="mapSvg" viewBox="0 0 1600 1024" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="map-hud" id="mapHud" style="display:none;"></div>
+        <div class="map-zoom" id="mapZoom">
+          <button class="map-zoom-btn" id="mapZoomIn" onclick="mapZoomStep(1)" title="Zoom in">+</button>
+          <div class="map-zoom-pct" id="mapZoomPct" title="Zoom (100% = whole map)">100%</div>
+          <button class="map-zoom-btn" id="mapZoomOut" onclick="mapZoomStep(-1)" title="Zoom out">−</button>
+        </div>
+        <div class="map-dropzone map-dz-copy" id="mapCopy">⧉<span>copy</span></div>
+        <div class="map-dropzone map-dz-trash" id="mapTrash">🗑<span>delete</span></div>
+      </div>
     </div>
 
     <!-- HISTORY TAB -->
@@ -1480,6 +1639,7 @@ let darkMode = true;
 let singleFocus = false;
 let notTodayCollapsed = true;
 let doneCollapsed = true;
+let viewMode = 'list'; // 'list' | 'map' (Phase 2 Mountain Board)
 
 // ── PHASE 1: UNDO ──
 // Stack of pending undo actions. Only the most recent is exposed via the toast,
@@ -2536,6 +2696,21 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
 function renderTasks() {
   renderCategoryPicker();
   renderMeta();
+  // Map view intercepts here so every existing renderTasks() call site keeps
+  // the active-tasks surface fresh regardless of which view is showing.
+  const mapWrap = document.getElementById('mapWrap');
+  const taskListEl = document.getElementById('taskList');
+  const guidesBtn = document.getElementById('btnGuides');
+  if (viewMode === 'map') {
+    if (taskListEl) taskListEl.style.display = 'none';
+    if (mapWrap) mapWrap.style.display = 'block';
+    if (guidesBtn) guidesBtn.style.display = '';
+    renderMap();
+    return;
+  }
+  if (mapWrap) mapWrap.style.display = 'none';
+  if (taskListEl) taskListEl.style.display = '';
+  if (guidesBtn) guidesBtn.style.display = 'none';
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
     list.innerHTML = `<div class="empty-msg"><div class="big">🧠</div>Add a task above or Dump Tasks to clear your head<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
@@ -2617,6 +2792,919 @@ function renderTasks() {
 
   list.innerHTML = html.join('');
   attachDragHandlers();
+}
+
+// ── PHASE 2: MOUNTAIN BOARD (MAP VIEW) ──
+// Loosely-coupled spatial view of the SAME active tasks. Tasks = peaks
+// (SVG mountain silhouettes), categories = ranges (soft hull around members).
+// X ≈ duration (mins), Y ≈ list order (earlier→later) — guides, never rules.
+// mapX/mapY (normalized 0..1) persist only once the user drags (M2).
+const MAP_VB_W = 1600, MAP_VB_H = 1024; // large content canvas — room for many tasks
+const MAP_PAD = 56;        // inner margin in viewBox units (keeps glyphs off the edge)
+const WORKDAY_MIN = 480;   // 8h ≈ full map width
+let mapRangeBoxes = [];    // [{catId,minX,minY,maxX,maxY}] — refreshed each renderMap, used for drop hit-test
+let mapDrag = null;        // active peak drag session, or null
+let mapHandlersBound = false;
+let mapGuides = true;      // show the time-axis guides (M5)
+// ── Google-Maps-style zoom/pan over a WORLD larger than the content. ──
+// Peaks/axis live in the central [0..MAP_VB_W]×[0..MAP_VB_H] content region; the
+// world extends well beyond it so zoom-out reveals open space and you can pan
+// freely from anywhere (like dragging a map around).
+// Zoom is expressed in % where 100% = the whole world fits (most zoomed-out =
+// the floor) and zooming IN goes above 100%, up to ZOOM_MAX_PCT. The +/- buttons
+// step by ZOOM_STEP (≈40%); the wheel/pinch zoom continuously.
+const MAP_ASPECT = MAP_VB_H / MAP_VB_W;
+const WORLD_W = MAP_VB_W * 1.25;           // small margin around the content
+const WORLD_H = WORLD_W * MAP_ASPECT;
+const WORLD_X = (MAP_VB_W - WORLD_W) / 2;  // centered on the content
+const WORLD_Y = (MAP_VB_H - WORLD_H) / 2;
+const ZOOM_MAX_PCT = 400;                  // most zoomed-in
+const ZOOM_STEP = 1.4;                     // per +/- button press
+let mapView = { x: 0, y: 0, w: MAP_VB_W, h: MAP_VB_H }; // default ≈ fit the content (~125%)
+const MAP_MIN_W = WORLD_W / (ZOOM_MAX_PCT / 100); // 100% = WORLD_W (floor), 400% = WORLD_W/4
+function mapZoomPct() { return Math.round(WORLD_W / mapView.w * 100); }
+function clampMapView(v) {
+  v.w = mclamp(v.w, MAP_MIN_W, WORLD_W);
+  v.h = v.w * MAP_ASPECT;              // keep canvas aspect
+  v.x = mclamp(v.x, WORLD_X, WORLD_X + WORLD_W - v.w);
+  v.y = mclamp(v.y, WORLD_Y, WORLD_Y + WORLD_H - v.h);
+  return v;
+}
+function applyMapView() {
+  const svg = document.getElementById('mapSvg');
+  if (svg) svg.setAttribute('viewBox', `${mapView.x.toFixed(1)} ${mapView.y.toFixed(1)} ${mapView.w.toFixed(1)} ${mapView.h.toFixed(1)}`);
+  const zin = document.getElementById('mapZoomIn'), zout = document.getElementById('mapZoomOut');
+  if (zin) zin.disabled = mapView.w <= MAP_MIN_W + 0.5;
+  if (zout) zout.disabled = mapView.w >= WORLD_W - 0.5;
+  const pct = document.getElementById('mapZoomPct');
+  if (pct) pct.textContent = mapZoomPct() + '%';
+}
+// Zoom keeping the canvas point (vbX,vbY) under the cursor fixed. factor<1 = in.
+function mapZoomAt(vbX, vbY, factor) {
+  const newW = mclamp(mapView.w * factor, MAP_MIN_W, WORLD_W);
+  const r = newW / mapView.w;
+  mapView = clampMapView({
+    x: vbX - (vbX - mapView.x) * r,
+    y: vbY - (vbY - mapView.y) * r,
+    w: newW, // h is derived from w by clampMapView (keeps aspect)
+  });
+  applyMapView();
+}
+function mapZoomStep(dir) { // +1 in, -1 out — centered on the view
+  const cx = mapView.x + mapView.w / 2, cy = mapView.y + mapView.h / 2;
+  mapZoomAt(cx, cy, dir > 0 ? 1 / ZOOM_STEP : ZOOM_STEP);
+}
+function onMapWheel(e) {
+  e.preventDefault();
+  const svg = document.getElementById('mapSvg');
+  const vb = clientToVB(e.clientX, e.clientY, svg, svg.getScreenCTM());
+  // pinch-zoom on a trackpad arrives as ctrl+wheel; normal wheel zooms too (Google-Maps style)
+  const intensity = e.ctrlKey ? 0.012 : 0.0022;
+  const factor = Math.exp(e.deltaY * intensity);
+  mapZoomAt(vb.x, vb.y, factor);
+}
+
+// ── Touch: two-finger pinch-zoom + pan (mobile equivalent of the wheel). ──
+let mapPointers = new Map();   // pointerId → {x,y} for all fingers down on the map
+let mapPinch = null;           // active two-finger gesture state
+function pinchInfo() {
+  const p = [...mapPointers.values()];
+  return { dist: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), midX: (p[0].x + p[1].x) / 2, midY: (p[0].y + p[1].y) / 2 };
+}
+function cancelMapDrag() {
+  if (!mapDrag) return;
+  const svg = document.getElementById('mapSvg');
+  try { svg.releasePointerCapture(mapDrag.pointerId); } catch(_) {}
+  if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging');
+  const mq = svg.querySelector('.map-marquee'); if (mq) mq.remove();
+  svg.classList.remove('map-panning'); hideDropZones();
+  svg.querySelectorAll('.merge-target').forEach(el => el.classList.remove('merge-target'));
+  svg.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+  const reRender = (mapDrag.kind === 'peak' || mapDrag.kind === 'range');
+  mapDrag = null;
+  if (reRender) renderMap();
+}
+let mapSelection = new Set(); // task ids in the current multi-selection
+// Totals for a set of task ids → {count, cats, mins}.
+function selectionTotals(ids) {
+  const ts = ids.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+  const cats = new Set(ts.map(t => t.categoryId).filter(Boolean));
+  return { count: ts.length, cats: cats.size, mins: ts.reduce((s, t) => s + (t.mins || 0), 0) };
+}
+function fmtMinsShort(m) { const h = Math.floor(m / 60), mm = m % 60; return h ? (mm ? `${h}h ${mm}m` : `${h}h`) : `${mm}m`; }
+function showHud(ids, labelPrefix) {
+  const hud = document.getElementById('mapHud');
+  if (!hud) return;
+  if (!ids || !ids.length) { hud.style.display = 'none'; return; }
+  const t = selectionTotals(ids);
+  hud.innerHTML = (labelPrefix ? `${esc(labelPrefix)} &nbsp;` : '')
+    + `<span>✓ <b>${t.count}</b> task${t.count === 1 ? '' : 's'}</span>`
+    + `<span>🗂 <b>${t.cats}</b> categor${t.cats === 1 ? 'y' : 'ies'}</span>`
+    + `<span>⏱ <b>${fmtMinsShort(t.mins)}</b></span>`;
+  hud.style.display = 'flex';
+}
+function hideHud() { const hud = document.getElementById('mapHud'); if (hud) hud.style.display = 'none'; }
+function refreshHud() { if (mapSelection.size) showHud([...mapSelection]); else hideHud(); }
+// Drop zones are fixed HTML overlays (screen space) so they stay reachable at
+// any zoom/pan. Hit-test the pointer's client coords against the zone elements.
+function overDropZone(clientX, clientY) {
+  for (const [id, kind] of [['mapCopy', 'copy'], ['mapTrash', 'trash']]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return kind;
+  }
+  return null;
+}
+function showDropZones() {
+  const w = document.getElementById('mapWrap'); if (!w) return;
+  // Anchor the zones to the VISIBLE bottom of the map area (the wrap can be taller
+  // than the viewport), so they're always reachable. copy = left, delete = centre.
+  const r = w.getBoundingClientRect();
+  const top = Math.round(Math.min(r.bottom, window.innerHeight) - 78 - 16);
+  const copy = document.getElementById('mapCopy'), trash = document.getElementById('mapTrash');
+  if (copy)  { copy.style.top = top + 'px';  copy.style.left = Math.round(r.left + 16) + 'px'; }
+  if (trash) { trash.style.top = top + 'px'; trash.style.left = Math.round(r.left + r.width / 2 - 46) + 'px'; }
+  w.classList.add('dropzones-on');
+}
+function hideDropZones() {
+  const w = document.getElementById('mapWrap'); if (w) w.classList.remove('dropzones-on');
+  document.getElementById('mapTrash')?.classList.remove('over');
+  document.getElementById('mapCopy')?.classList.remove('over');
+}
+
+
+function mclamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function autoX(mins) { return mclamp(0.06 + 0.88 * Math.min(mins || 0, WORKDAY_MIN) / WORKDAY_MIN, 0.06, 0.94); }
+function autoY(i, n) { return n <= 1 ? 0.5 : mclamp(0.10 + 0.80 * (i / (n - 1)), 0.10, 0.90); }
+// Compute-on-render position; never written back unless the user drags it (M2).
+function peakPos(t, i, n) {
+  return {
+    x: (typeof t.mapX === 'number') ? t.mapX : autoX(t.mins),
+    y: (typeof t.mapY === 'number') ? t.mapY : autoY(i, n)
+  };
+}
+// normalized (0..1) → viewBox px center, clamped to the inner margin
+function peakCenter(nx, ny) {
+  return {
+    cx: mclamp(nx * MAP_VB_W, MAP_PAD, MAP_VB_W - MAP_PAD),
+    cy: mclamp(ny * MAP_VB_H, MAP_PAD, MAP_VB_H - MAP_PAD)
+  };
+}
+function peakHeight(t) {
+  const base = mclamp(34 + (t.mins || 0) * 0.9, 40, 150);
+  return base * (t.isMIT ? 1.25 : 1);
+}
+// Half-width also grows with allocated time, so longer tasks are bigger mountains.
+function peakWidth(t) {
+  const base = mclamp(34 + (t.mins || 0) * 0.34, 38, 120);
+  return base * (t.isMIT ? 1.12 : 1);
+}
+// Mountain silhouette: base sits at cy, apex points up by peakHeight.
+function peakPathD(cx, cy, t) {
+  const h = peakHeight(t), w = peakWidth(t), base = cy, apex = cy - h;
+  return `M ${(cx-w).toFixed(1)} ${base.toFixed(1)}`
+       + ` L ${(cx-w*0.45).toFixed(1)} ${(base-h*0.5).toFixed(1)}`
+       + ` L ${(cx-w*0.18).toFixed(1)} ${(base-h*0.78).toFixed(1)}`
+       + ` L ${cx.toFixed(1)} ${apex.toFixed(1)}`
+       + ` L ${(cx+w*0.22).toFixed(1)} ${(base-h*0.7).toFixed(1)}`
+       + ` L ${(cx+w*0.5).toFixed(1)} ${(base-h*0.46).toFixed(1)}`
+       + ` L ${(cx+w).toFixed(1)} ${base.toFixed(1)} Z`;
+}
+// Snow cap near the apex for MIT peaks.
+function snowCapD(cx, cy, t) {
+  const h = peakHeight(t), apex = cy - h, cw = peakWidth(t) * 0.32;
+  return `M ${(cx-cw).toFixed(1)} ${(apex+h*0.2).toFixed(1)}`
+       + ` L ${cx.toFixed(1)} ${apex.toFixed(1)}`
+       + ` L ${(cx+cw*0.7).toFixed(1)} ${(apex+h*0.16).toFixed(1)}`
+       + ` L ${(cx+cw*0.3).toFixed(1)} ${(apex+h*0.3).toFixed(1)}`
+       + ` L ${(cx-cw*0.5).toFixed(1)} ${(apex+h*0.28).toFixed(1)} Z`;
+}
+function mapTrunc(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+// Wide, low jagged ridge line spanning a category's peaks (simple line-art look).
+// Bumps up at each member's x; taller bump for longer tasks. Angular segments.
+function rangeRidgeD(members, minX, maxX, baseY) {
+  const sorted = members.slice().sort((a, b) => a.cx - b.cx);
+  const amp = 26;
+  const pts = [{ x: minX, y: baseY }];
+  for (let i = 0; i < sorted.length; i++) {
+    const m = sorted[i];
+    if (i > 0) { const prev = sorted[i - 1]; pts.push({ x: (prev.cx + m.cx) / 2, y: baseY - amp * 0.22 }); }
+    const bh = amp * mclamp(0.55 + (m.t.mins || 0) / 240, 0.55, 1.15);
+    pts.push({ x: mclamp(m.cx, minX, maxX), y: baseY - bh });
+  }
+  pts.push({ x: maxX, y: baseY });
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+  return d;
+}
+// Faint axis guides: vertical duration ticks (with labels) + Y "earlier/later" caps.
+function mapAxisLayer() {
+  const left = MAP_PAD, right = MAP_VB_W - MAP_PAD, top = MAP_PAD, bottom = MAP_VB_H - MAP_PAD;
+  let s = '';
+  const marks = [15, 30, 60, 120, 240, 480];
+  for (const m of marks) {
+    const cx = mclamp(autoX(m) * MAP_VB_W, left, right);
+    s += `<line class="map-axis-tick" x1="${cx.toFixed(1)}" y1="${top}" x2="${cx.toFixed(1)}" y2="${bottom}"/>`;
+    s += `<text class="map-axis-label" x="${cx.toFixed(1)}" y="${bottom + 24}" text-anchor="middle">${m < 60 ? m + 'm' : (m / 60) + 'h'}</text>`;
+  }
+  s += `<text class="map-axis-cap" x="${left}" y="${top + 4}" text-anchor="start">▲ earlier</text>`;
+  s += `<text class="map-axis-cap" x="${left}" y="${bottom - 2}" text-anchor="start">▼ later</text>`;
+  return `<g class="map-grid">${s}</g>`;
+}
+
+function renderMap() {
+  const svg = document.getElementById('mapSvg');
+  if (!svg) return;
+  const visible = tasks.filter(t => !t.done && !isHiddenToday(t));
+  const hidden  = tasks.filter(t => !t.done &&  isHiddenToday(t));
+  const peaksData = visible.concat(hidden); // visible first, then misted
+  const n = peaksData.length;
+  mapRangeBoxes = []; // reset up-front so the n===0 path can't leave stale ranges
+
+  // World backdrop (fills the whole pannable area) + a subtly brighter content panel.
+  const bg = `<rect class="map-world-bg" x="${WORLD_X.toFixed(1)}" y="${WORLD_Y.toFixed(1)}" width="${WORLD_W.toFixed(1)}" height="${WORLD_H.toFixed(1)}"/>`
+    + `<rect class="map-bg" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" rx="18"/>`;
+  let html = bg + (mapGuides ? mapAxisLayer() : '');
+
+  if (n === 0) {
+    html += `<text class="map-empty-label" x="${MAP_VB_W/2}" y="${MAP_VB_H/2}">Add a task to grow your first peak ⛰</text>`;
+    svg.innerHTML = html;
+    bindMapHandlersOnce();
+    return;
+  }
+
+  // Centers for every peak. Keep the whole mountain on-screen: the base near the
+  // bottom and the apex low enough to leave headroom for the category ridge above
+  // (so a tall peak near the top can't clip off the canvas or shove its label).
+  const centers = peaksData.map((t, i) => {
+    const p = peakPos(t, i, n);
+    const c = peakCenter(p.x, p.y);
+    const h = peakHeight(t);
+    const cy = mclamp(c.cy, h + 70, MAP_VB_H - 38); // apex stays ≥ 70 from the top
+    return { t, cx: c.cx, cy };
+  });
+
+  // ── RANGE = a wide, low ridge line (line-art) spanning the category's peaks,
+  // with the name centered beneath it. Acts as a quiet background; the whole
+  // ridge+name is the drag/rename handle. We cache a bbox for drop hit-testing.
+  let ranges = '';
+  const sortedCats = categories.slice().sort((a, b) => a.order - b.order);
+  for (const cat of sortedCats) {
+    const members = centers.filter(c => c.t.categoryId === cat.id);
+    if (!members.length) continue;
+    let minX = Infinity, maxX = -Infinity, topApex = Infinity, lowBase = -Infinity, sumX = 0;
+    for (const m of members) {
+      const w = peakWidth(m.t);
+      minX = Math.min(minX, m.cx - w); maxX = Math.max(maxX, m.cx + w);
+      topApex = Math.min(topApex, m.cy - peakHeight(m.t));
+      lowBase = Math.max(lowBase, m.cy + 14);
+      sumX += m.cx;
+    }
+    // The ridge sits ABOVE the cluster: a wide, low line spanning centroid ± half
+    // width (min MIN_W), with the name just below the ridge but still ABOVE the
+    // highest peak — so the category name never overlaps any task.
+    const centroidX = sumX / members.length;
+    const MIN_W = 260;
+    const ridgeW = Math.max(maxX - minX + 28, MIN_W);
+    let rx1 = centroidX - ridgeW / 2, rx2 = centroidX + ridgeW / 2;
+    if (rx1 < 14) { rx2 += 14 - rx1; rx1 = 14; }
+    if (rx2 > MAP_VB_W - 14) { rx1 -= rx2 - (MAP_VB_W - 14); rx2 = MAP_VB_W - 14; }
+    rx1 = Math.max(rx1, 14);
+    const nameY = mclamp(topApex - 12, 44, MAP_VB_H - 40); // above the highest apex
+    const ridgeBaseY = nameY - 15;                          // ridge sits above the name
+    const ridgeD = rangeRidgeD(members, rx1, rx2, ridgeBaseY);
+    // Store the ridge segment + member peaks so membership can hug the actual
+    // content (touch a peak / be near the ridge) instead of a big bounding box.
+    mapRangeBoxes.push({ catId: cat.id, rx1, rx2, ridgeBaseY, members });
+    const midX = (rx1 + rx2) / 2;
+    // Big invisible grab zone covering the whole ridge+name header band, so the
+    // range is easy to grab anywhere in it (the thin line alone was hard to hit).
+    const hitY = ridgeBaseY - 32, hitH = (nameY + 10) - hitY;
+    ranges += `<g class="map-range" data-cat-id="${cat.id}" style="--cat-color:${cat.color}">`
+      + `<g class="map-range-marker" data-cat-id="${cat.id}">`
+      +   `<rect class="map-range-hit" x="${rx1.toFixed(1)}" y="${hitY.toFixed(1)}" width="${(rx2 - rx1).toFixed(1)}" height="${hitH.toFixed(1)}" rx="14"/>`
+      +   `<path class="map-range-ridge" d="${ridgeD}"/>`
+      +   `<text class="map-range-label" data-cat-id="${cat.id}" x="${midX.toFixed(1)}" y="${nameY.toFixed(1)}" text-anchor="middle">${esc(cat.name)}</text>`
+      + `</g>`
+      + `</g>`;
+  }
+
+  // ── PEAKS ──
+  let peaks = '';
+  for (const c of centers) {
+    const t = c.t;
+    const cat = t.categoryId ? categories.find(k => k.id === t.categoryId) : null;
+    const catStyle = cat ? `style="--cat-color:${cat.color}"` : '';
+    const cls = `map-peak${cat ? ' has-cat' : ''}${t.isMIT ? ' is-mit' : ''}${isHiddenToday(t) ? ' misted' : ''}${t.id === activeId ? ' active' : ''}${t.id === activeId && running ? ' running' : ''}${mapSelection.has(t.id) ? ' selected' : ''}`;
+    const cap = t.isMIT ? `<path class="map-peak-cap" d="${snowCapD(c.cx, c.cy, t)}"/>` : '';
+    // Active peak controls: start/pause ▶ INSIDE the mountain body; complete ✓
+    // sits on the apex (click the summit to finish).
+    let apexCtl = '';
+    if (t.id === activeId && !t.done) {
+      const apex = c.cy - peakHeight(t);
+      const sy = c.cy - peakHeight(t) * 0.40; // within the body
+      const ic = (t.id === activeId && running) ? '⏸' : '▶';
+      apexCtl = `<g class="map-peak-start" data-start-id="${t.id}">`
+        + `<circle cx="${c.cx.toFixed(1)}" cy="${sy.toFixed(1)}" r="13"/>`
+        + `<text x="${c.cx.toFixed(1)}" y="${(sy + 4).toFixed(1)}" text-anchor="middle">${ic}</text>`
+        + `</g>`
+        + `<g class="map-peak-done" data-done-id="${t.id}" title="Complete (click the summit)">`
+        + `<circle cx="${c.cx.toFixed(1)}" cy="${apex.toFixed(1)}" r="11"/>`
+        + `<text x="${c.cx.toFixed(1)}" y="${(apex + 4).toFixed(1)}" text-anchor="middle">✓</text>`
+        + `</g>`;
+    }
+    peaks += `<g class="${cls}" data-task-id="${t.id}" data-cx="${c.cx.toFixed(1)}" data-cy="${c.cy.toFixed(1)}" ${catStyle}>`
+      + `<path class="map-peak-body" d="${peakPathD(c.cx, c.cy, t)}"/>`
+      + cap
+      + `<text class="map-peak-label" x="${c.cx.toFixed(1)}" y="${(c.cy + 18).toFixed(1)}">${esc(mapTrunc(t.name, 16))}</text>`
+      + apexCtl
+      + `</g>`;
+  }
+
+  // ── CAPACITY OVERFLOW (visual only — no scheduling math) ──
+  // If today's committed minutes exceed an 8h workday, tint the area past the
+  // 8h mark and show a gentle banner. Pure signal; nothing is blocked.
+  let capacity = '';
+  const totalMins = visible.reduce((s, t) => s + (t.mins || 0), 0);
+  if (totalMins > WORKDAY_MIN) {
+    const x8 = autoX(WORKDAY_MIN) * MAP_VB_W;
+    const fmtH = (m) => { const h = Math.floor(m / 60), mm = m % 60; return mm ? `${h}h ${mm}m` : `${h}h`; };
+    capacity = `<g class="map-overflow">`
+      + `<rect class="map-overflow-band" x="${x8.toFixed(1)}" y="0" width="${(MAP_VB_W - x8).toFixed(1)}" height="${MAP_VB_H}"/>`
+      + `<text class="map-overflow-label" x="${MAP_VB_W - 24}" y="30" text-anchor="end">⚠ ${fmtH(totalMins)} planned · over 8h</text>`
+      + `</g>`;
+  }
+
+  // (Trash/copy drop-zones are fixed HTML overlays — see #mapTrash/#mapCopy.)
+  svg.innerHTML = html + capacity + ranges + peaks;
+  refreshHud();
+  bindMapHandlersOnce();
+}
+
+// ── MAP DRAG (M2): pointer events, kept entirely separate from the List's
+// HTML5-draggable reorder. Peaks never get a `draggable` attr. ──
+function clientToVB(clientX, clientY, svg, ctm) {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const r = pt.matrixTransform((ctm || svg.getScreenCTM()).inverse());
+  return { x: r.x, y: r.y };
+}
+
+function onMapPointerDown(e) {
+  mapPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // Safety net: a fresh first pointer should never have a live drag. If one
+  // lingers (a previous pointerup was lost / capture failed), clean it up first.
+  if (mapDrag && mapPointers.size === 1) cancelMapDrag();
+  if (mapPointers.size >= 2) { // second finger → start a pinch, abort any single drag
+    e.preventDefault();
+    cancelMapDrag();
+    const pi = pinchInfo();
+    mapPinch = { prevDist: pi.dist, prevMidX: pi.midX, prevMidY: pi.midY };
+    return;
+  }
+  if (e.button != null && e.button !== 0) return;
+  const closest = (sel) => e.target.closest && e.target.closest(sel);
+  // Apex controls (inside the peak <g>) take priority over dragging.
+  const startCtl = closest('.map-peak-start');
+  if (startCtl) { e.preventDefault(); startTask(Number(startCtl.getAttribute('data-start-id'))); renderMap(); return; }
+  const doneCtl = closest('.map-peak-done');
+  if (doneCtl) { e.preventDefault(); toggleDone(Number(doneCtl.getAttribute('data-done-id'))); return; }
+
+  const svg = document.getElementById('mapSvg');
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return;
+  const startVB = clientToVB(e.clientX, e.clientY, svg, ctm);
+  const common = { ctm, startVB, pointerId: e.pointerId, moved: false, startClientX: e.clientX, startClientY: e.clientY };
+
+  // A peak (on top) → peak drag. Otherwise a range area (marker/hull) → range drag/rename.
+  const g = closest('.map-peak');
+  if (g) {
+    mapDrag = Object.assign({ kind: 'peak', id: Number(g.getAttribute('data-task-id')), g,
+      shiftKey: e.shiftKey || e.metaKey || e.ctrlKey,
+      cx0: parseFloat(g.getAttribute('data-cx')), cy0: parseFloat(g.getAttribute('data-cy')) }, common);
+    try { svg.setPointerCapture(e.pointerId); } catch(_) {}
+    return;
+  }
+  const marker = closest('.map-range-marker'); // the ridge + name = range handle
+  if (marker) {
+    const catId = marker.getAttribute('data-cat-id');
+    const rangeG = marker.closest('.map-range');
+    const memberEls = [...document.querySelectorAll('#mapSvg .map-peak')].filter(el => {
+      const t = tasks.find(x => x.id === Number(el.getAttribute('data-task-id')));
+      return t && t.categoryId === catId;
+    });
+    mapDrag = Object.assign({ kind: 'range', catId, rangeG, memberEls }, common);
+    try { svg.setPointerCapture(e.pointerId); } catch(_) {}
+    return;
+  }
+  // Empty space → rubber-band multi-select; Ctrl/⌘+drag → pan the map.
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    mapDrag = Object.assign({ kind: 'pan', panStartView: { ...mapView } }, common);
+  } else {
+    mapDrag = Object.assign({ kind: 'marquee' }, common);
+  }
+  try { svg.setPointerCapture(e.pointerId); } catch(_) {}
+}
+
+function onMapPointerMove(e) {
+  if (mapPointers.has(e.pointerId)) mapPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // Two-finger pinch: zoom around the gesture centre + pan by its movement.
+  if (mapPinch && mapPointers.size >= 2) {
+    e.preventDefault();
+    const svg0 = document.getElementById('mapSvg');
+    const pi = pinchInfo();
+    const anchor = clientToVB(pi.midX, pi.midY, svg0, svg0.getScreenCTM());
+    mapZoomAt(anchor.x, anchor.y, pi.dist > 0 ? mapPinch.prevDist / pi.dist : 1);
+    const ctm = svg0.getScreenCTM();
+    const dxs = pi.midX - mapPinch.prevMidX, dys = pi.midY - mapPinch.prevMidY;
+    if (ctm && (dxs || dys)) {
+      mapView = clampMapView({ x: mapView.x - dxs / ctm.a, y: mapView.y - dys / ctm.d, w: mapView.w });
+      applyMapView();
+    }
+    mapPinch.prevDist = pi.dist; mapPinch.prevMidX = pi.midX; mapPinch.prevMidY = pi.midY;
+    return;
+  }
+  if (!mapDrag) return;
+  const svg = document.getElementById('mapSvg');
+  if (!mapDrag.moved) {
+    const sdx = e.clientX - mapDrag.startClientX, sdy = e.clientY - mapDrag.startClientY;
+    if (Math.hypot(sdx, sdy) < 4) return; // below threshold = still a click
+    mapDrag.moved = true;
+    if (mapDrag.kind === 'peak') { mapDrag.g.classList.add('dragging'); showDropZones(); } // reveals drop-zones
+  }
+  const cur = clientToVB(e.clientX, e.clientY, svg, mapDrag.ctm);
+  const dx = cur.x - mapDrag.startVB.x, dy = cur.y - mapDrag.startVB.y;
+  const tf = `translate(${dx.toFixed(1)} ${dy.toFixed(1)})`;
+
+  // Pan: shift the viewBox window opposite the drag (content follows the cursor).
+  // Uses the start-of-drag CTM so the delta stays stable as the view moves.
+  if (mapDrag.kind === 'pan') {
+    svg.classList.add('map-panning');
+    mapView = clampMapView({ x: mapDrag.panStartView.x - dx, y: mapDrag.panStartView.y - dy, w: mapDrag.panStartView.w, h: mapDrag.panStartView.h });
+    applyMapView();
+    return;
+  }
+
+  // Marquee: draw the selection rectangle and live-count peaks inside it.
+  if (mapDrag.kind === 'marquee') {
+    const x = Math.min(mapDrag.startVB.x, cur.x), y = Math.min(mapDrag.startVB.y, cur.y);
+    const w = Math.abs(cur.x - mapDrag.startVB.x), h = Math.abs(cur.y - mapDrag.startVB.y);
+    let rect = svg.querySelector('.map-marquee');
+    if (!rect) { rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); rect.setAttribute('class', 'map-marquee'); svg.appendChild(rect); }
+    rect.setAttribute('x', x.toFixed(1)); rect.setAttribute('y', y.toFixed(1));
+    rect.setAttribute('width', w.toFixed(1)); rect.setAttribute('height', h.toFixed(1));
+    showHud(peaksInBox(x, y, x + w, y + h), 'Selecting');
+    return;
+  }
+
+  // Range drag: translate the whole range (ridge + every member peak) + show totals.
+  if (mapDrag.kind === 'range') {
+    mapDrag.rangeG.setAttribute('transform', tf);
+    mapDrag.memberEls.forEach(el => el.setAttribute('transform', tf));
+    showHud(mapDrag.memberEls.map(el => Number(el.getAttribute('data-task-id'))), 'Moving range');
+    return;
+  }
+
+  mapDrag.g.setAttribute('transform', tf);
+  showHud([mapDrag.id], 'Moving');
+  const px = mapDrag.cx0 + dx, py = mapDrag.cy0 + dy;
+  // Drop-zone hit-test uses the cursor's SCREEN position (zones are fixed overlays).
+  const zone = overDropZone(e.clientX, e.clientY);
+  const overTrash = zone === 'trash', overCopy = zone === 'copy';
+  document.getElementById('mapTrash')?.classList.toggle('over', overTrash);
+  document.getElementById('mapCopy')?.classList.toggle('over', overCopy);
+  // Live-highlight the peak we'd MERGE with (touching another mountain → merge).
+  document.querySelectorAll('#mapSvg .map-peak.merge-target').forEach(p => p.classList.remove('merge-target'));
+  const mergeId = (overTrash || overCopy) ? null : findPeakAt(px, py, mapDrag.id);
+  if (mergeId != null) {
+    const mg = document.querySelector(`#mapSvg .map-peak[data-task-id="${mergeId}"]`);
+    if (mg) mg.classList.add('merge-target');
+  }
+  // Live-highlight the range we'd join (suppressed over a drop-zone or a merge target)
+  document.querySelectorAll('#mapSvg .map-range').forEach(r => r.classList.remove('drop-target'));
+  const overCat = (overTrash || overCopy || mergeId != null) ? null : hitTestRange(px, py, mapDrag.id);
+  if (overCat && overCat !== tasks.find(x => x.id === mapDrag.id)?.categoryId) {
+    const idx = mapRangeBoxes.findIndex(b => b.catId === overCat);
+    const el = document.querySelectorAll('#mapSvg .map-range')[idx];
+    if (el) el.classList.add('drop-target');
+  }
+}
+
+// Which category a peak dropped at (px,py) should join. A peak belongs to a range
+// when it TOUCHES a member peak (even slightly) OR sits right at/just below the
+// ridge. Otherwise null (uncategorized) — so moving above the ridge into open
+// space, or away from the members it touched, detaches it. No big bounding box.
+function hitTestRange(px, py, draggedId) {
+  const dt = draggedId != null ? tasks.find(t => t.id === draggedId) : null;
+  const dHalf = dt ? peakWidth(dt) * 0.5 : 0;
+  let best = null, bestScore = Infinity;
+  for (const b of mapRangeBoxes) {
+    let score = Infinity;
+    // (a) at/just below the ridge: under its span, from a touch above to ~70 below
+    if (px >= b.rx1 - 22 && px <= b.rx2 + 22 && py >= b.ridgeBaseY - 30 && py <= b.ridgeBaseY + 72) {
+      score = Math.abs(py - (b.ridgeBaseY + 18));
+    }
+    // (b) touching a member peak's body (its footprint + the dragged peak's half-width)
+    for (const m of b.members) {
+      if (m.t.id === draggedId) continue;
+      const W = peakWidth(m.t) + dHalf + 8, H = peakHeight(m.t) + 12;
+      if (px >= m.cx - W && px <= m.cx + W && py >= m.cy - H && py <= m.cy + 18) {
+        score = Math.min(score, Math.hypot(px - m.cx, py - m.cy));
+      }
+    }
+    if (score < bestScore) { bestScore = score; best = b.catId; }
+  }
+  return best; // null if it didn't touch any range's peaks or ridge
+}
+
+function onMapPointerUp(e) {
+  mapPointers.delete(e.pointerId);
+  if (mapPinch) { if (mapPointers.size < 2) mapPinch = null; return; } // lifted from a pinch — no drop logic
+  if (!mapDrag) return;
+  const d = mapDrag; mapDrag = null;
+  const svg = document.getElementById('mapSvg');
+  try { svg.releasePointerCapture(d.pointerId); } catch(_) {}
+  if (d.kind === 'peak') d.g.classList.remove('dragging');
+  svg.classList.remove('map-panning');
+  hideDropZones();
+
+  // ── PAN: nothing to commit; a no-move click on empty just clears selection. ──
+  if (d.kind === 'pan') {
+    if (!d.moved && mapSelection.size) { mapSelection.clear(); renderMap(); }
+    return;
+  }
+
+  const cur = clientToVB(e.clientX, e.clientY, svg, d.ctm);
+  const dx = cur.x - d.startVB.x, dy = cur.y - d.startVB.y;
+
+  // ── MARQUEE: click empty → clear selection; drag → select peaks in the box. ──
+  if (d.kind === 'marquee') {
+    const rect = svg.querySelector('.map-marquee'); if (rect) rect.remove();
+    if (!d.moved) { mapSelection.clear(); hideHud(); renderMap(); return; }
+    const x1 = Math.min(d.startVB.x, cur.x), y1 = Math.min(d.startVB.y, cur.y);
+    const x2 = Math.max(d.startVB.x, cur.x), y2 = Math.max(d.startVB.y, cur.y);
+    mapSelection = new Set(peaksInBox(x1, y1, x2, y2));
+    renderMap();
+    return;
+  }
+
+  // ── RANGE drag: click → rename; drag → move every member peak by the delta. ──
+  if (d.kind === 'range') {
+    if (!d.moved) { mapRenameRange(d.catId); return; }
+    d.memberEls.forEach(el => {
+      const t = tasks.find(x => x.id === Number(el.getAttribute('data-task-id')));
+      if (!t) return;
+      const cx0 = parseFloat(el.getAttribute('data-cx')), cy0 = parseFloat(el.getAttribute('data-cy'));
+      t.mapX = mclamp((cx0 + dx) / MAP_VB_W, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
+      t.mapY = mclamp((cy0 + dy) / MAP_VB_H, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
+    });
+    saveAll(); renderMap();
+    return;
+  }
+
+  // ── PEAK drag ──
+  if (!d.moved) {
+    if (d.shiftKey) { // modifier-click toggles multi-selection membership
+      if (mapSelection.has(d.id)) mapSelection.delete(d.id); else mapSelection.add(d.id);
+      renderMap();
+    } else {
+      mapSelection.clear();
+      onPeakClick(d.id);
+    }
+    return;
+  }
+  const t = tasks.find(x => x.id === d.id);
+  if (!t) { renderMap(); return; }
+
+  const px = d.cx0 + dx, py = d.cy0 + dy;
+  const zone = overDropZone(e.clientX, e.clientY);
+  if (zone === 'copy')  { duplicateTask(d.id); return; }
+  if (zone === 'trash') { deleteTask(d.id); return; }
+
+  // Persist normalized position (clamped to the same inner margin renderMap uses).
+  t.mapX = mclamp(px / MAP_VB_W, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
+  t.mapY = mclamp(py / MAP_VB_H, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
+
+  // Dropped onto ANOTHER peak → group them (category rules in mergeTasks).
+  const targetId = findPeakAt(px, py, d.id);
+  if (targetId != null) { mergeTasks(d.id, targetId, e.clientX, e.clientY); return; }
+
+  // Otherwise: touches a range (peak/ridge) → that category; else uncategorized.
+  const dropCat = hitTestRange(px, py, d.id);
+  if (dropCat !== t.categoryId) {
+    moveTaskToCategory(d.id, dropCat); // reorders + renderTasks (→ renderMap) + saveAll
+  } else {
+    saveAll();
+    renderMap();
+  }
+}
+
+// Task ids whose peak center falls inside the given viewBox rectangle.
+function peaksInBox(x1, y1, x2, y2) {
+  const ids = [];
+  document.querySelectorAll('#mapSvg .map-peak').forEach(el => {
+    const id = Number(el.getAttribute('data-task-id'));
+    const t = tasks.find(x => x.id === id);
+    if (t && isHiddenToday(t)) return; // don't marquee-select snoozed (misted) peaks
+    const cx = parseFloat(el.getAttribute('data-cx')), cy = parseFloat(el.getAttribute('data-cy'));
+    if (cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) ids.push(id);
+  });
+  return ids;
+}
+
+// Find the peak the dragged one is touching, using true bounding-box overlap of
+// the two mountains (base at cy, apex up by peakHeight). So merge fires whenever
+// the bodies overlap — even if the dragged base lands a bit below the target.
+function findPeakAt(px, py, excludeId) {
+  const dt = excludeId != null ? tasks.find(t => t.id === excludeId) : null;
+  const aW = dt ? peakWidth(dt) : 24, aH = dt ? peakHeight(dt) : 40;
+  const m = 8; // small touch margin
+  let best = null, bestD = Infinity;
+  document.querySelectorAll('#mapSvg .map-peak').forEach(el => {
+    const id = Number(el.getAttribute('data-task-id'));
+    if (id === excludeId) return;
+    const t = tasks.find(x => x.id === id);
+    if (!t || isHiddenToday(t)) return; // don't merge onto a snoozed (misted) peak
+    const cx = parseFloat(el.getAttribute('data-cx')), cy = parseFloat(el.getAttribute('data-cy'));
+    const bW = peakWidth(t), bH = peakHeight(t);
+    const overlapX = (px - aW) < (cx + bW + m) && (px + aW) > (cx - bW - m);
+    const overlapY = (py - aH) < (cy + m) && py > (cy - bH - m);
+    if (overlapX && overlapY) {
+      const dist = Math.hypot(px - cx, py - cy);
+      if (dist < bestD) { bestD = dist; best = id; }
+    }
+  });
+  return best;
+}
+
+// Group a dragged task with a target task. Category rule (user-chosen):
+// target wins among named; a named category beats none; both-none → prompt new name.
+function mergeTasks(draggedId, targetId, clientX, clientY) {
+  const a = tasks.find(t => t.id === draggedId), b = tasks.find(t => t.id === targetId);
+  if (!a || !b) { renderMap(); return; }
+  if (b.categoryId) {                 // target named → dragged joins it
+    a.categoryId = b.categoryId; saveAll(); renderMap();
+  } else if (a.categoryId) {          // only dragged named → target joins it
+    b.categoryId = a.categoryId; saveAll(); renderMap();
+  } else {                            // both unnamed → make a new range, prompt a name
+    const input = makeMapInput(clientX, clientY, '', 'New range name…');
+    if (!input) { renderMap(); return; }
+    wireMapInput(input, (val) => {
+      input.remove();
+      const name = (val || '').trim();
+      if (!name) { renderMap(); return; } // blur/empty = cancel — don't create a stray category
+      const cat = addCategory(name);  // returns existing-or-new category
+      if (cat) { a.categoryId = cat.id; b.categoryId = cat.id; }
+      saveAll(); renderMap();
+    });
+  }
+}
+
+// Click on a peak with no drag — select it as the active task (full select/start in M4).
+function onPeakClick(id) {
+  selectTask(id);
+  renderMap();
+}
+
+function bindMapHandlersOnce() {
+  if (mapHandlersBound) return;
+  const svg = document.getElementById('mapSvg');
+  if (!svg) return;
+  svg.addEventListener('pointerdown', onMapPointerDown);
+  svg.addEventListener('pointermove', onMapPointerMove);
+  svg.addEventListener('pointerup', onMapPointerUp);
+  svg.addEventListener('pointercancel', (e) => {
+    mapPointers.delete(e.pointerId);
+    if (mapPinch && mapPointers.size < 2) mapPinch = null;
+    if (mapDrag) { if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging'); mapDrag = null; svg.classList.remove('map-panning'); hideDropZones(); const mq = svg.querySelector('.map-marquee'); if (mq) mq.remove(); renderMap(); }
+  });
+  svg.addEventListener('dblclick', onMapDblClick);
+  svg.addEventListener('wheel', onMapWheel, { passive: false });
+  svg.addEventListener('contextmenu', e => e.preventDefault()); // Ctrl-drag pan shouldn't pop a menu
+  document.addEventListener('keydown', onMapKeydown);
+  // Hold Ctrl/⌘ in map view → show a grab cursor so it's clear you can drag-pan.
+  const panReady = (e) => { svg.classList.toggle('pan-ready', viewMode === 'map' && !mapDrag && (e.ctrlKey || e.metaKey)); };
+  window.addEventListener('keydown', panReady);
+  window.addEventListener('keyup', panReady);
+  window.addEventListener('blur', () => { svg.classList.remove('pan-ready'); if (mapDrag) cancelMapDrag(); mapPointers.clear(); mapPinch = null; });
+  applyMapView();
+  mapHandlersBound = true;
+}
+
+// Keyboard: copy / paste / delete (Win: Ctrl, Mac: ⌘). Operates on the
+// multi-selection when there is one, otherwise the active peak.
+let mapClipboard = null; // array of task snapshots, or null
+function onMapKeydown(e) {
+  if (viewMode !== 'map') return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+  const mod = e.metaKey || e.ctrlKey;
+  const k = e.key.toLowerCase();
+  if (mod && k === 'c') {
+    const ids = mapSelection.size ? [...mapSelection] : (activeId != null ? [activeId] : []);
+    const ts = ids.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+    if (ts.length) { mapClipboard = ts.map(t => JSON.parse(JSON.stringify(t))); e.preventDefault(); }
+  } else if (mod && k === 'v') {
+    if (mapClipboard && mapClipboard.length) { pasteFromClipboard(); e.preventDefault(); }
+  } else if (k === 'delete' || k === 'backspace') {
+    if (mapSelection.size) { mapDeleteTasks([...mapSelection]); e.preventDefault(); }
+    else if (activeId != null) {
+      const at = tasks.find(t => t.id === activeId);
+      if (at && !at.done && !isHiddenToday(at)) { deleteTask(activeId); e.preventDefault(); } // only the visible active peak
+    }
+  } else if (k === 'escape') {
+    if (mapDrag) { cancelMapDrag(); e.preventDefault(); }        // abort an in-flight drag
+    else if (mapSelection.size) { mapSelection.clear(); renderMap(); e.preventDefault(); }
+  }
+}
+// Batch-delete with a SINGLE combined undo (looping deleteTask would leave only
+// the last one undoable — silent data loss). Mirrors clearDone().
+function mapDeleteTasks(ids) {
+  const idSet = new Set(ids);
+  const removed = tasks.map((t, idx) => ({ t, idx })).filter(x => idSet.has(x.t.id));
+  if (!removed.length) return;
+  flushElapsed();
+  const removingActive = removed.some(x => x.t.id === activeId);
+  tasks = tasks.filter(t => !idSet.has(t.id));
+  mapSelection.clear();
+  if (removingActive) {
+    pauseTimer();
+    const next = tasks.find(x => !x.done);
+    if (next) { activeId = next.id; totalSec = next.mins * 60; remaining = next.secsRemaining > 0 ? next.secsRemaining : next.mins * 60; }
+    else { activeId = null; remaining = 0; totalSec = 1; }
+    updateDisplay(); updateRing(); updateTopBar(); renderActivePill();
+  }
+  renderTasks(); updateStats(); renderDots(); saveAll();
+  const nn = removed.length;
+  showUndo(`Deleted ${nn} task${nn === 1 ? '' : 's'}`, () => {
+    removed.sort((a, b) => a.idx - b.idx).forEach(({ t, idx }) => tasks.splice(Math.min(idx, tasks.length), 0, t));
+    bumpDataTimestamp(); renderTasks(); updateStats(); renderDots(); saveAll();
+  });
+}
+function pasteFromClipboard() {
+  if (!mapClipboard || !mapClipboard.length) return;
+  const newIds = [];
+  for (const src of mapClipboard) {
+    const copy = JSON.parse(JSON.stringify(src));
+    copy.id = Date.now() + Math.random();
+    copy.isMIT = false; copy.done = false;
+    copy.secsRemaining = (copy.mins || 0) * 60; copy.secsSpent = 0; copy.sessions = 0;
+    copy.createdAt = Date.now();
+    copy.notTodayDayKey = null; copy.lastHiddenDayKey = null; copy.notTodayStreak = 0;
+    if (typeof copy.mapX === 'number') copy.mapX = mclamp(copy.mapX + 0.05, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
+    if (typeof copy.mapY === 'number') copy.mapY = mclamp(copy.mapY + 0.05, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
+    if (copy.categoryId && !categories.find(c => c.id === copy.categoryId)) copy.categoryId = null;
+    tasks.push(copy); newIds.push(copy.id);
+  }
+  activeId = newIds[newIds.length - 1];
+  mapSelection = new Set(newIds); // select the pasted copies
+  renderTasks(); updateStats(); renderActivePill(); saveAll();
+  const nn = newIds.length;
+  showUndo(`Pasted ${nn} task${nn === 1 ? '' : 's'}`, () => {
+    const s = new Set(newIds); tasks = tasks.filter(t => !s.has(t.id));
+    bumpDataTimestamp(); renderTasks(); updateStats(); saveAll();
+  });
+}
+
+// ── MAP CRUD (M3): double-click empty → add peak; double-click peak → rename ──
+function onMapDblClick(e) {
+  const svg = document.getElementById('mapSvg');
+  if (e.target.closest && e.target.closest('.map-range-marker')) return; // range rename/move handled on pointerdown
+  const g = e.target.closest && e.target.closest('.map-peak');
+  if (g) { mapRenamePeak(Number(g.getAttribute('data-task-id'))); return; }
+  const vb = clientToVB(e.clientX, e.clientY, svg, svg.getScreenCTM());
+  mapAddPeakAt(vb.x, vb.y, e.clientX, e.clientY);
+}
+
+// Rename a category (mountain range) by clicking its label on the map.
+function mapRenameRange(catId) {
+  const cat = categories.find(c => c.id === catId);
+  if (!cat) return;
+  const label = document.querySelector(`#mapSvg .map-range-label[data-cat-id="${catId}"]`);
+  if (!label) return;
+  const r = label.getBoundingClientRect();
+  const input = makeMapInput(r.left + r.width / 2, r.top + r.height / 2, cat.name, 'Range name');
+  if (!input) return;
+  wireMapInput(input, (val) => {
+    input.remove();
+    const name = (val || '').trim();
+    if (name && name !== cat.name) { cat.name = name; saveAll(); }
+    renderMap();
+  });
+}
+
+// Duplicate a task (drag-to-copy). Original stays where it was; the copy lands
+// slightly offset so both are visible. Undo-able.
+function duplicateTask(id) {
+  const src = tasks.find(t => t.id === id);
+  if (!src) return;
+  const copy = Object.assign({}, src);
+  copy.id = Date.now() + Math.random();
+  copy.isMIT = false;            // MIT is exclusive — don't clone it
+  copy.done = false;
+  copy.secsRemaining = copy.mins * 60;
+  copy.secsSpent = 0; copy.sessions = 0;
+  copy.createdAt = Date.now();
+  copy.notTodayDayKey = null; copy.lastHiddenDayKey = null; copy.notTodayStreak = 0;
+  if (typeof src.mapX === 'number') copy.mapX = mclamp(src.mapX + 0.045, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
+  if (typeof src.mapY === 'number') copy.mapY = mclamp(src.mapY + 0.045, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
+  const idx = tasks.findIndex(t => t.id === id);
+  tasks.splice(idx + 1, 0, copy);
+  renderTasks(); updateStats(); saveAll();
+  showUndo(`Copied "${src.name}"`, () => {
+    tasks = tasks.filter(t => t.id !== copy.id);
+    bumpDataTimestamp();
+    renderTasks(); updateStats(); saveAll();
+  });
+}
+
+// Floating <input> over the map (the map has no list-card DOM to edit inline).
+function makeMapInput(clientX, clientY, value, placeholder) {
+  const wrap = document.getElementById('mapWrap');
+  if (!wrap) return null;
+  const wr = wrap.getBoundingClientRect();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'map-inline-input';
+  input.value = value || '';
+  input.placeholder = placeholder || '';
+  input.maxLength = 100;
+  input.style.left = Math.round(clientX - wr.left) + 'px';
+  input.style.top = Math.round(clientY - wr.top) + 'px';
+  wrap.appendChild(input);
+  setTimeout(() => { input.focus(); input.select(); }, 0);
+  return input;
+}
+function wireMapInput(input, commit) {
+  let done = false;
+  const finish = (save) => {
+    if (done) return; done = true;
+    if (save) { commit(input.value); }
+    else { input.remove(); renderMap(); }
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('pointerdown', e => e.stopPropagation()); // never start a peak drag
+}
+function mapAddPeakAt(vbX, vbY, clientX, clientY) {
+  const input = makeMapInput(clientX, clientY, '', 'New task…');
+  if (!input) return;
+  wireMapInput(input, (val) => {
+    input.remove();
+    const name = (val || '').trim();
+    if (!name) { renderMap(); return; }
+    const cat = hitTestRange(vbX, vbY, null); // dbl-click near a range → joins it
+    addTask(name, quickMin, 'manual');  // pushes silently when a name is passed
+    const t = tasks[tasks.length - 1];
+    if (t) {
+      t.categoryId = cat;
+      t.mapX = mclamp(vbX / MAP_VB_W, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
+      t.mapY = mclamp(vbY / MAP_VB_H, MAP_PAD / MAP_VB_H, 1 - MAP_PAD / MAP_VB_H);
+      if (activeId === null) activeId = t.id;
+    }
+    renderTasks(); updateStats(); renderActivePill(); saveAll();
+    playSound('clap');
+  });
+}
+function mapRenamePeak(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  const g = document.querySelector(`#mapSvg .map-peak[data-task-id="${id}"]`);
+  if (!g) return;
+  const r = g.getBoundingClientRect();
+  const input = makeMapInput(r.left + r.width / 2, r.top + r.height / 2, t.name, 'Task name');
+  if (!input) return;
+  wireMapInput(input, (val) => {
+    input.remove();
+    const name = (val || '').trim();
+    if (name && name !== t.name) { t.name = name; saveAll(); }
+    renderMap();
+    if (id === activeId) renderActivePill();
+  });
+}
+
+function setViewMode(m) {
+  if (m !== 'list' && m !== 'map') return;
+  viewMode = m;
+  const segL = document.getElementById('segList'), segM = document.getElementById('segMap');
+  if (segL) segL.classList.toggle('active', m === 'list');
+  if (segM) segM.classList.toggle('active', m === 'map');
+  try { localStorage.setItem('focustimer_viewMode', m); } catch(e) {}
+  renderTasks();
+}
+
+function toggleMapGuides() {
+  mapGuides = !mapGuides;
+  const btn = document.getElementById('btnGuides');
+  if (btn) btn.classList.toggle('active-mode', mapGuides);
+  try { localStorage.setItem('focustimer_mapGuides', mapGuides ? '1' : '0'); } catch(e) {}
+  renderMap();
 }
 
 function toggleNotTodayCollapsed() {
@@ -3291,6 +4379,17 @@ loadAll();
   if (ntc === '0') notTodayCollapsed = false;
   const dc = localStorage.getItem('focustimer_done_collapsed');
   if (dc === '0') doneCollapsed = false;
+  const vm = localStorage.getItem('focustimer_viewMode');
+  if (vm === 'map') {
+    viewMode = 'map';
+    const segL = document.getElementById('segList'), segM = document.getElementById('segMap');
+    if (segL) segL.classList.remove('active');
+    if (segM) segM.classList.add('active');
+  }
+  const mg = localStorage.getItem('focustimer_mapGuides');
+  if (mg === '0') mapGuides = false;
+  const gBtn = document.getElementById('btnGuides');
+  if (gBtn && mapGuides) gBtn.classList.add('active-mode');
 })();
 clearExpiredNotToday();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
