@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Focus Timer</title>
+<!-- PWA: installable, standalone, offline (sw.js) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Baguet+Script&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -46,6 +52,7 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-text-size-adjust: 100%;
+  padding-bottom: env(safe-area-inset-bottom); /* standalone PWA: clear the iOS home indicator */
 }
 button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 .btn-add, .btn-import, .btn-small, .btn-edit, .btn-del,
@@ -1137,8 +1144,9 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   .map-peak-mins { font-size: 19px; }
   .map-range-label { font-size: 36px; }
   .view-seg { order: -1; }
-  /* Bigger touch targets + readable HUD on phones. */
-  .map-zoom { right: 12px; bottom: 14px; }
+  /* Bigger touch targets + readable HUD on phones. Zoom buttons clear the
+     iOS home indicator in standalone (PWA) mode via the safe-area inset. */
+  .map-zoom { right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); }
   .map-zoom-btn { width: 44px; height: 44px; font-size: 24px; }
   .map-hud { font-size: 13px; padding: 8px 14px; gap: 10px; top: 8px; }
 
@@ -4520,7 +4528,13 @@ function toggleTheme() {
   const btn = document.getElementById('btnTheme');
   if (btn) btn.textContent = darkMode ? '☽' : '☀';
   try { localStorage.setItem('focustimer_theme', darkMode ? 'dark' : 'light'); } catch(e) {}
+  syncThemeColorMeta();
   renderClock();
+}
+// Keep the PWA status-bar/title-bar color in step with the theme.
+function syncThemeColorMeta() {
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.content = darkMode ? '#0f1117' : '#eef0f5';
 }
 
 // ── SINGLE FOCUS MODE ──
@@ -4729,7 +4743,12 @@ loadAll();
   if (mg === '0') mapGuides = false;
   const gBtn = document.getElementById('btnGuides');
   if (gBtn && mapGuides) gBtn.classList.add('active-mode');
+  syncThemeColorMeta();
 })();
+// PWA: offline shell + installability. file:// (local double-click) skips it.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
 clearExpiredNotToday();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
 renderTasks(); updateStats(); renderActivePill();
