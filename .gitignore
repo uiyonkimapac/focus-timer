@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Playwright MCP test artifacts
+.playwright-mcp/
+
+# Verification screenshots (kept locally, not part of the app)
+phase1-*.png
+redesign-*.png
