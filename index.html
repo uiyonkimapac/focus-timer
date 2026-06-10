@@ -905,6 +905,12 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   cursor: grab; user-select: none;
   letter-spacing: -1px;
   transition: color 0.15s;
+  touch-action: none; /* pressing the handle starts a touch drag, never a scroll */
+}
+/* Floating clone that follows the finger during a touch reorder. */
+.task-card.touch-ghost {
+  box-shadow: 0 10px 26px rgba(0,0,0,0.45);
+  opacity: 0.95;
 }
 .drag-handle:hover { color: var(--accent); }
 .drag-handle:active { cursor: grabbing; }
@@ -2677,7 +2683,7 @@ function renderTaskCard(t) {
   <div class="task-card${catClass}${mitClass} ${isAct?'selected':''} ${t.done?'done':''}"
        data-task-id="${t.id}"
        data-cat-id="${t.categoryId||''}"
-       draggable="${!t.done}"
+       draggable="${!t.done && FINE_POINTER}"
        ${catAttr}
        onclick="selectTask(${t.id})">
     ${!t.done ? `<div class="drag-handle" title="Drag to reorder">⋮⋮</div>` : `<div class="drag-handle ghost"></div>`}
@@ -2716,8 +2722,10 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
     <button class="btn-del" onclick="event.stopPropagation();deleteCategory('${id}')" title="Delete group">✕</button>
   `;
   // Real categories are draggable so the user can reorder lanes.
-  // Uncategorized stays anchored at the bottom.
-  const drag = isUncategorized ? '' : ' draggable="true"';
+  // Uncategorized stays anchored at the bottom. (Mouse only — touch devices
+  // use the pointer-event reorder path; gating also disables iOS Safari's
+  // NATIVE long-press drag of [draggable], which would race the touch path.)
+  const drag = (isUncategorized || !FINE_POINTER) ? '' : ' draggable="true"';
   const grip = isUncategorized ? '' : '<span class="cat-grip" title="Drag to reorder group">⋮⋮</span>';
   const styleAttr = isUncategorized ? '' : ` style="--cat-color:${color}"`;
   return `
@@ -3871,7 +3879,12 @@ function closeTE(id) { const el=document.getElementById('te_'+id); if(el) el.cla
 let dragSrcId = null;
 let dragSrcCatId = null; // set while a category lane is being dragged
 
+// Mouse gets the HTML5 drag-and-drop path below; touch gets the pointer-event
+// path (bindTouchReorderOnce). Hybrids (touch laptops) get both.
+const FINE_POINTER = matchMedia('(hover: hover) and (pointer: fine)').matches;
+
 function attachDragHandlers() {
+  bindTouchReorderOnce();
   document.querySelectorAll('#taskList .task-card[draggable="true"]').forEach(card => {
     card.addEventListener('dragstart', onDragStart);
     card.addEventListener('dragover',  onDragOver);
@@ -4003,6 +4016,148 @@ function onLaneDragEnd() {
   document.querySelectorAll('#taskList .cat-header').forEach(h =>
     h.classList.remove('lane-drop-before', 'lane-drop-after', 'drop-into-group'));
   dragSrcCatId = null;
+}
+
+// ── TOUCH REORDER: pointer-event drag for touch/pen, sharing the commit
+// functions (reorderTasks / moveTaskToCategory) and drop-indicator classes
+// with the HTML5 mouse path above. Lift = press the ⋮⋮ handle, or long-press
+// (350ms) anywhere on the card; moving early lets native scroll win. ──
+let touchDrag = null; // {srcId, cardEl, ghost, lpTimer, lifted, startX, startY, lastX, lastY, raf, blocker, overEl, overKind, after}
+
+function bindTouchReorderOnce() {
+  const list = document.getElementById('taskList');
+  if (!list || list._touchReorderBound) return;
+  list._touchReorderBound = true;
+  list.addEventListener('pointerdown', onListPointerDown);
+  document.addEventListener('pointermove', onListPointerMove);
+  document.addEventListener('pointerup', onListPointerUp);
+  document.addEventListener('pointercancel', () => cleanupTouchDrag(false));
+  list.addEventListener('contextmenu', e => { if (touchDrag && touchDrag.lifted) e.preventDefault(); });
+}
+
+function onListPointerDown(e) {
+  if (e.pointerType === 'mouse') return; // mouse uses the HTML5 path
+  if (touchDrag) cleanupTouchDrag(false); // stale-gesture safety net
+  const card = e.target.closest('.task-card[data-task-id]');
+  if (!card) return;
+  const t = tasks.find(x => x.id === Number(card.dataset.taskId));
+  if (!t || t.done) return;
+  if (e.target.closest('button, input, .check-wrap, .time-badge, .inline-time-edit')) return;
+  touchDrag = { srcId: t.id, cardEl: card, lifted: false,
+    startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY };
+  if (e.target.closest('.drag-handle')) {
+    e.preventDefault(); // handle has touch-action:none — lift immediately
+    liftTouchDrag();
+  } else {
+    touchDrag.lpTimer = setTimeout(() => { if (touchDrag && !touchDrag.lifted) liftTouchDrag(); }, 350);
+  }
+}
+
+function liftTouchDrag() {
+  const d = touchDrag; if (!d) return;
+  d.lifted = true;
+  const r = d.cardEl.getBoundingClientRect();
+  d.ghost = d.cardEl.cloneNode(true);
+  d.ghost.classList.add('touch-ghost');
+  d.ghost.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;margin:0;z-index:40;pointer-events:none;`;
+  document.body.appendChild(d.ghost);
+  d.cardEl.classList.add('dragging');
+  // Freeze page scroll for the rest of the gesture (the finger was stationary
+  // during the hold, so the browser hasn't claimed it for scrolling yet).
+  d.blocker = (ev) => ev.preventDefault();
+  document.addEventListener('touchmove', d.blocker, { passive: false });
+  if (navigator.vibrate) navigator.vibrate(10);
+  d.raf = requestAnimationFrame(touchAutoScroll);
+}
+
+function onListPointerMove(e) {
+  const d = touchDrag; if (!d || e.pointerType === 'mouse') return;
+  d.lastX = e.clientX; d.lastY = e.clientY;
+  if (!d.lifted) {
+    // Moved before the long-press armed → it's a scroll, not a drag.
+    if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 10) cleanupTouchDrag(false);
+    return;
+  }
+  d.ghost.style.transform = `translate(${d.lastX - d.startX}px, ${d.lastY - d.startY}px) scale(1.02)`;
+  updateTouchDropTarget(d);
+}
+
+function clearTouchIndicators() {
+  document.querySelectorAll('#taskList .drop-before, #taskList .drop-after')
+    .forEach(c => c.classList.remove('drop-before', 'drop-after'));
+  document.querySelectorAll('#taskList .drop-into-group')
+    .forEach(h => h.classList.remove('drop-into-group'));
+}
+
+function updateTouchDropTarget(d) {
+  clearTouchIndicators();
+  d.overEl = null; d.overKind = null;
+  const el = document.elementFromPoint(d.lastX, d.lastY); // ghost is pointer-events:none
+  if (!el) return;
+  const card = el.closest && el.closest('#taskList .task-card[data-task-id]');
+  if (card && Number(card.dataset.taskId) !== d.srcId) {
+    const t = tasks.find(x => x.id === Number(card.dataset.taskId));
+    if (t && !t.done) {
+      const r = card.getBoundingClientRect();
+      d.after = (d.lastY - r.top) > r.height / 2;
+      card.classList.add(d.after ? 'drop-after' : 'drop-before');
+      d.overEl = card; d.overKind = 'card';
+      return;
+    }
+  }
+  const h = el.closest && el.closest('#taskList .cat-header');
+  // Only real group headers take drops (done/not-today headers carry no cat id).
+  if (h && h.dataset.catId && !h.classList.contains('done-header')) {
+    h.classList.add('drop-into-group');
+    d.overEl = h; d.overKind = 'header';
+  }
+}
+
+// Keep dragging usable on a long list: scroll the page when the finger nears
+// the viewport edges (the document is the app's only scroller).
+function touchAutoScroll() {
+  const d = touchDrag; if (!d || !d.lifted) return;
+  const M = 80, MAX = 12;
+  let dy = 0;
+  if (d.lastY < M) dy = -Math.ceil((M - d.lastY) / M * MAX);
+  else if (d.lastY > innerHeight - M) dy = Math.ceil((d.lastY - (innerHeight - M)) / M * MAX);
+  if (dy) { window.scrollBy(0, dy); updateTouchDropTarget(d); }
+  d.raf = requestAnimationFrame(touchAutoScroll);
+}
+
+function onListPointerUp(e) {
+  const d = touchDrag; if (!d || e.pointerType === 'mouse') return;
+  if (!d.lifted) { cleanupTouchDrag(false); return; } // plain tap → click (selectTask) proceeds
+  const { srcId, overEl, overKind, after } = d;
+  cleanupTouchDrag(true); // suppress the trailing click so selectTask doesn't fire
+  if (!overEl) return; // released over nothing = no-op
+  if (overKind === 'card') {
+    const targetId = Number(overEl.dataset.taskId);
+    const src = tasks.find(x => x.id === srcId), target = tasks.find(x => x.id === targetId);
+    if (!src || !target || target.done) return;
+    // Moving into another group? Adopt the target's categoryId (same rule as onDrop).
+    const newCatId = (src.categoryId !== target.categoryId) ? target.categoryId : src.categoryId;
+    reorderTasks(srcId, targetId, after, newCatId);
+  } else {
+    const rawId = overEl.dataset.catId;
+    moveTaskToCategory(srcId, (rawId === '__uncat' || !rawId) ? null : rawId);
+  }
+}
+
+function cleanupTouchDrag(suppressClick) {
+  const d = touchDrag; if (!d) return;
+  touchDrag = null;
+  if (d.lpTimer) clearTimeout(d.lpTimer);
+  if (d.raf) cancelAnimationFrame(d.raf);
+  if (d.blocker) document.removeEventListener('touchmove', d.blocker);
+  if (d.ghost) d.ghost.remove();
+  if (d.cardEl) d.cardEl.classList.remove('dragging'); // may be detached after a re-render — harmless
+  clearTouchIndicators();
+  if (suppressClick) {
+    const squelch = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+    document.addEventListener('click', squelch, { capture: true, once: true });
+    setTimeout(() => document.removeEventListener('click', squelch, { capture: true }), 400);
+  }
 }
 
 function reorderCategories(srcId, targetId, after) {
