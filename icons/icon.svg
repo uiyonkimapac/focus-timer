@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Focus Timer app icon — etched-cartography mark matching the Mountain
+       Board: ink line-art peak with west-flank relief shading on deep ink,
+       inside a double neatline ring. Source of truth for all PNG sizes. -->
+  <rect width="512" height="512" fill="#0e1411"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#cfc9b6" stroke-width="6" opacity="0.4"/>
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#cfc9b6" stroke-width="2.5" opacity="0.18"/>
+  <g>
+    <!-- silhouette: concave flanks + shoulder summit (peakPathD idiom) -->
+    <path d="M 96 352
+             Q 157 330 192 269
+             L 208 256
+             L 227 275
+             L 256 128
+             Q 307 304 416 352
+             Z"
+          fill="rgba(207,201,182,0.10)" stroke="#cfc9b6" stroke-width="9" stroke-linejoin="round"/>
+    <!-- west flank in shadow -->
+    <path d="M 256 128 L 248 272 L 240 352 L 96 352
+             Q 157 330 192 269
+             L 208 256 L 227 275 Z"
+          fill="rgba(0,0,0,0.34)"/>
+    <!-- etched ridgeline + spur -->
+    <path d="M 256 128 L 248 272 L 240 352 M 208 256 L 198 304 L 182 352"
+          fill="none" stroke="#cfc9b6" stroke-width="4" opacity="0.5" stroke-linecap="round"/>
+    <!-- snow cap -->
+    <path d="M 233 246 L 243 232 L 252 243 L 263 230 L 273 248 L 282 190 L 256 128 L 238 218 Z"
+          fill="#f4efdf" opacity="0.92"/>
+  </g>
+  <!-- time tick at the apex bearing — a quiet nod to the timer -->
+  <line x1="256" y1="46" x2="256" y2="74" stroke="#cfc9b6" stroke-width="6" opacity="0.55" stroke-linecap="round"/>
+</svg>

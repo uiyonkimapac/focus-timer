@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Playwright MCP test artifacts
+.playwright-mcp/
+
+# Verification screenshots (kept locally, not part of the app)
+# (icons/*.png are real app assets — not ignored)
+phase1-*.png
+redesign-*.png
+mobile-*.png
+m3-*.jpeg
