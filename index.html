@@ -397,6 +397,11 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   padding: 0 28px 20px;
 }
 #mapSvg { width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
+/* Touch: no text-selection / magnifier-callout on long-press (it's a gesture here). */
+#mapSvg, #mapSvg * { -webkit-user-select: none; user-select: none; }
+.map-wrap { -webkit-touch-callout: none; }
+/* Long-press armed (≥500ms hold on a peak): quiet etched cue — dashed ink outline. */
+.map-peak.lp-ready .map-peak-body { stroke-dasharray: 5 4; }
 #mapSvg.pan-ready { cursor: grab; }
 #mapSvg.map-panning { cursor: grabbing; }
 .map-world-bg { fill: var(--map-world-bg); }
@@ -2906,6 +2911,7 @@ function pinchInfo() {
 }
 function cancelMapDrag() {
   if (!mapDrag) return;
+  clearMapLongPress(mapDrag);
   const svg = document.getElementById('mapSvg');
   try { svg.releasePointerCapture(mapDrag.pointerId); } catch(_) {}
   if (mapDrag.kind === 'peak' && mapDrag.g) mapDrag.g.classList.remove('dragging');
@@ -3283,7 +3289,7 @@ function onMapPointerDown(e) {
   const ctm = svg.getScreenCTM();
   if (!ctm) return;
   const startVB = clientToVB(e.clientX, e.clientY, svg, ctm);
-  const common = { ctm, startVB, pointerId: e.pointerId, moved: false, startClientX: e.clientX, startClientY: e.clientY };
+  const common = { ctm, startVB, pointerId: e.pointerId, moved: false, startClientX: e.clientX, startClientY: e.clientY, t0: performance.now() };
 
   // A peak (on top) → peak drag. Otherwise a range area (marker/hull) → range drag/rename.
   const g = closest('.map-peak');
@@ -3291,6 +3297,7 @@ function onMapPointerDown(e) {
     mapDrag = Object.assign({ kind: 'peak', id: Number(g.getAttribute('data-task-id')), g,
       shiftKey: e.shiftKey || e.metaKey || e.ctrlKey,
       cx0: parseFloat(g.getAttribute('data-cx')), cy0: parseFloat(g.getAttribute('data-cy')) }, common);
+    if (e.pointerType === 'touch') armMapLongPress(mapDrag, g);
     try { svg.setPointerCapture(e.pointerId); } catch(_) {}
     return;
   }
@@ -3307,13 +3314,36 @@ function onMapPointerDown(e) {
     return;
   }
   // Empty space → rubber-band multi-select; Ctrl/⌘+drag → pan the map.
-  if (e.ctrlKey || e.metaKey) {
+  // On TOUCH a one-finger empty drag pans instead (marquee is desktop-only).
+  if (e.ctrlKey || e.metaKey || e.pointerType === 'touch') {
     e.preventDefault();
     mapDrag = Object.assign({ kind: 'pan', panStartView: { ...mapView } }, common);
+    if (e.pointerType === 'touch') armMapLongPress(mapDrag, null);
   } else {
     mapDrag = Object.assign({ kind: 'marquee' }, common);
   }
   try { svg.setPointerCapture(e.pointerId); } catch(_) {}
+}
+
+// ── Touch long-press (mobile stand-in for dblclick): hold ≥500ms without
+// moving, then RELEASE → add a peak (empty space) or rename (on a peak).
+// The timer only gives feedback at 500ms — the action fires in pointerup so
+// the input focus happens inside a real user gesture (iOS keyboard rule).
+const MAP_LP_MS = 500;
+function armMapLongPress(d, peakG) {
+  d.lpTimer = setTimeout(() => {
+    if (mapDrag !== d || d.moved) return;
+    if (navigator.vibrate) navigator.vibrate(10);
+    if (peakG) peakG.classList.add('lp-ready');
+  }, MAP_LP_MS);
+}
+function clearMapLongPress(d) {
+  if (!d) return;
+  if (d.lpTimer) { clearTimeout(d.lpTimer); d.lpTimer = null; }
+  if (d.kind === 'peak' && d.g) d.g.classList.remove('lp-ready');
+}
+function heldLongPress(d, e) {
+  return e.pointerType === 'touch' && !d.moved && performance.now() - d.t0 >= MAP_LP_MS;
 }
 
 function onMapPointerMove(e) {
@@ -3338,8 +3368,10 @@ function onMapPointerMove(e) {
   const svg = document.getElementById('mapSvg');
   if (!mapDrag.moved) {
     const sdx = e.clientX - mapDrag.startClientX, sdy = e.clientY - mapDrag.startClientY;
-    if (Math.hypot(sdx, sdy) < 4) return; // below threshold = still a click
+    const slop = e.pointerType === 'touch' ? 10 : 4; // fingers wobble more than mice
+    if (Math.hypot(sdx, sdy) < slop) return; // below threshold = still a click
     mapDrag.moved = true;
+    clearMapLongPress(mapDrag); // a real drag can't become a long-press
     if (mapDrag.kind === 'peak') { mapDrag.g.classList.add('dragging'); showDropZones(); } // reveals drop-zones
   }
   const cur = clientToVB(e.clientX, e.clientY, svg, mapDrag.ctm);
@@ -3432,14 +3464,17 @@ function onMapPointerUp(e) {
   if (mapPinch) { if (mapPointers.size < 2) mapPinch = null; return; } // lifted from a pinch — no drop logic
   if (!mapDrag) return;
   const d = mapDrag; mapDrag = null;
+  clearMapLongPress(d);
   const svg = document.getElementById('mapSvg');
   try { svg.releasePointerCapture(d.pointerId); } catch(_) {}
   if (d.kind === 'peak') d.g.classList.remove('dragging');
   svg.classList.remove('map-panning');
   hideDropZones();
 
-  // ── PAN: nothing to commit; a no-move click on empty just clears selection. ──
+  // ── PAN: nothing to commit; a no-move click on empty just clears selection.
+  // On touch, a held tap on empty space = long-press → add a peak there. ──
   if (d.kind === 'pan') {
+    if (heldLongPress(d, e)) { mapAddPeakAt(d.startVB.x, d.startVB.y, e.clientX, e.clientY); return; }
     if (!d.moved && mapSelection.size) { mapSelection.clear(); renderMap(); }
     return;
   }
@@ -3474,6 +3509,7 @@ function onMapPointerUp(e) {
 
   // ── PEAK drag ──
   if (!d.moved) {
+    if (heldLongPress(d, e)) { mapRenamePeak(d.id); return; } // touch long-press = rename
     if (d.shiftKey) { // modifier-click toggles multi-selection membership
       if (mapSelection.has(d.id)) mapSelection.delete(d.id); else mapSelection.add(d.id);
       renderMap();
