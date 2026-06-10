@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Focus Timer</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Baguet+Script&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Baguet+Script&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #0f1117;
@@ -29,11 +29,11 @@
   --blue-soft: rgba(41,128,185,0.20);
   --radius: 14px;
   --radius-sm: 8px;
-  /* Mountain Board (Map View) */
+  /* Mountain Board (Map View) — etched-cartography palette */
   --map-bg: #0e1411;
   --map-world-bg: #080a09;
-  --map-peak-fill: #e8f0ea;
-  --map-peak-stroke: rgba(0,0,0,0.30);
+  --map-ink: #cfc9b6;                    /* parchment ink — all line-art strokes */
+  --map-peak-shade: rgba(0,0,0,0.32);    /* west-flank relief shading */
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -401,22 +401,51 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 #mapSvg.map-panning { cursor: grabbing; }
 .map-world-bg { fill: var(--map-world-bg); }
 .map-bg { fill: var(--map-bg); }
-.map-axis-line { stroke: var(--border); stroke-width: 1; }
-.map-axis-tick { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 5; }
-.map-axis-label { fill: var(--text3); font-family: 'DM Mono', monospace; font-size: 13px; }
-.map-axis-cap { fill: var(--text3); font-family: 'DM Sans', sans-serif; font-size: 12px; letter-spacing: 0.5px; }
-.map-range-ridge { fill: none; stroke: var(--cat-color); stroke-width: 2.5; opacity: 0.65; stroke-linejoin: round; stroke-linecap: round; }
+/* Neatline — the classic double map frame. Always on; quiet. */
+.map-neatline { fill: none; stroke: var(--map-ink); opacity: 0.35; stroke-width: 1.5; }
+.map-neatline-inner { fill: none; stroke: var(--map-ink); opacity: 0.14; stroke-width: 0.75; }
+/* Axes — thin instrument lines: an hour ruler along the bottom and a central
+   priority axis. Solid hairlines, not dashes — scientific, not decorative. */
+.map-axis-base { stroke: var(--map-ink); opacity: 0.55; stroke-width: 1.5; }
+.map-axis-tick { stroke: var(--map-ink); opacity: 0.6; stroke-width: 1.5; }
+.map-axis-tick-minor { stroke: var(--map-ink); opacity: 0.28; stroke-width: 1; }
+.map-axis-grid { stroke: var(--map-ink); opacity: 0.08; stroke-width: 1; }
+.map-axis-mid { stroke: var(--map-ink); opacity: 0.25; stroke-width: 1.2; }
+.map-axis-arrow { fill: none; stroke: var(--map-ink); opacity: 0.45; stroke-width: 1.5; stroke-linejoin: round; }
+.map-axis-label { fill: var(--text2); font-family: 'DM Mono', monospace; font-size: 18px; }
+.map-axis-cap { fill: var(--map-ink); opacity: 0.6; font-family: 'DM Mono', monospace; font-size: 16px; letter-spacing: 2.5px; }
+/* Range = a small etched ridge silhouette + the territory name in serif caps. */
+.map-range-ridge { fill: var(--cat-color); fill-opacity: 0.07; stroke: var(--cat-color); stroke-width: 2; opacity: 0.9; stroke-linejoin: round; stroke-linecap: round; }
+.map-range-spur { fill: none; stroke: var(--cat-color); stroke-width: 1.1; opacity: 0.5; stroke-linecap: round; }
 /* Large grab zone for the range header — invisible until hovered. */
 .map-range-hit { fill: var(--cat-color); fill-opacity: 0; stroke: var(--cat-color); stroke-opacity: 0; stroke-width: 1.5; stroke-dasharray: 5 4; transition: fill-opacity 0.12s, stroke-opacity 0.12s; pointer-events: all; }
 .map-range-marker:hover .map-range-hit { fill-opacity: 0.08; stroke-opacity: 0.45; }
-.map-range-label { fill: var(--cat-color); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 3px; opacity: 0.85; text-transform: lowercase; }
+.map-range-label {
+  fill: var(--cat-color); font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 28px; font-weight: 600; letter-spacing: 7px; text-transform: uppercase;
+  paint-order: stroke; stroke: var(--map-bg); stroke-width: 5px; stroke-linejoin: round;
+}
 .map-peak { cursor: pointer; }
-.map-peak-body { fill: var(--map-peak-fill); stroke: var(--map-peak-stroke); stroke-width: 1; }
-.map-peak.has-cat .map-peak-body { fill: var(--cat-color); }
-.map-peak-cap { fill: rgba(255,255,255,0.85); }
-.map-peak-label { fill: var(--text2); font-family: 'DM Sans', sans-serif; font-size: 12px; text-anchor: middle; pointer-events: none; }
-.map-empty-label { fill: var(--text3); font-family: 'DM Sans', sans-serif; font-size: 14px; text-anchor: middle; }
-.map-peak.is-mit .map-peak-body { fill: #f1c40f; stroke: #b8860b; }
+/* Peaks are etched line-art: ink outline, faint tint wash, shaded west flank. */
+.map-peak-body { fill: color-mix(in srgb, var(--map-ink) 9%, transparent); stroke: var(--map-ink); stroke-width: 2; stroke-linejoin: round; }
+.map-peak.has-cat .map-peak-body { fill: color-mix(in srgb, var(--cat-color) 20%, transparent); stroke: color-mix(in srgb, var(--cat-color) 70%, var(--map-ink)); }
+.map-peak-shade { fill: var(--map-peak-shade); pointer-events: none; }
+.map-peak-detail { fill: none; stroke: var(--map-ink); stroke-width: 1.2; opacity: 0.4; pointer-events: none; stroke-linecap: round; }
+.map-peak.has-cat .map-peak-detail { stroke: color-mix(in srgb, var(--cat-color) 55%, var(--map-ink)); }
+.map-peak-cap { fill: #f4efdf; opacity: 0.92; pointer-events: none; }
+.map-peak-label {
+  fill: var(--text); font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 500;
+  text-anchor: middle; pointer-events: none;
+  paint-order: stroke; stroke: var(--map-bg); stroke-width: 4.5px; stroke-linejoin: round;
+}
+.map-peak-mins {
+  fill: var(--text3); font-family: 'DM Mono', monospace; font-size: 14px;
+  text-anchor: middle; pointer-events: none;
+  paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px; stroke-linejoin: round;
+}
+.map-empty-label { fill: var(--map-ink); opacity: 0.7; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 30px; text-anchor: middle; }
+.map-peak.is-mit .map-peak-body { fill: color-mix(in srgb, #e8b923 38%, transparent); stroke: #e3b341; }
+.map-peak.is-mit .map-peak-detail { stroke: #e3b341; }
 .map-peak.misted { opacity: 0.32; }
 .map-peak.active .map-peak-body { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 8px var(--accent-glow)); }
 .map-peak-start { cursor: pointer; }
@@ -490,20 +519,20 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   outline: none; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
 }
 .map-overflow-band { fill: var(--red); opacity: 0.07; }
-.map-overflow-label { fill: var(--red); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; opacity: 0.85; }
+.map-overflow-label { fill: var(--red); font-family: 'DM Sans', sans-serif; font-size: 18px; font-weight: 600; opacity: 0.9; paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px; stroke-linejoin: round; }
 /* Subtle pulse on the running peak — motion-gated for accessibility. */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes mapPeakPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.78; } }
   .map-peak.running .map-peak-start circle { animation: mapPeakPulse 1.6s ease-in-out infinite; }
 }
-/* Light-theme map palette (dark values wash out on white). */
+/* Light-theme map palette — aged parchment, sepia ink. */
 body.light {
-  --map-bg: #eef2ee;
-  --map-world-bg: #dfe5e0;
-  --map-peak-fill: #3a4a40;
-  --map-peak-stroke: rgba(0,0,0,0.18);
+  --map-bg: #f1ecdd;
+  --map-world-bg: #e4ddc8;
+  --map-ink: #4a4334;
+  --map-peak-shade: rgba(58,52,38,0.20);
 }
-body.light .map-peak-cap { fill: rgba(255,255,255,0.92); }
+body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .task-inp {
   flex: 1; background: var(--surface2);
@@ -1091,7 +1120,11 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   /* Map view: give the SVG a concrete height (parent is no longer flex:1 on
      mobile) and enlarge in-SVG text so labels stay legible when scaled down. */
   .map-wrap { padding: 0 8px 12px; min-height: 340px; height: 56vh; }
-  .map-axis-label, .map-axis-cap, .map-range-label, .map-peak-label { font-size: 17px; }
+  .map-axis-label { font-size: 20px; }
+  .map-axis-cap { font-size: 16px; }
+  .map-peak-label { font-size: 26px; }
+  .map-peak-mins { font-size: 19px; }
+  .map-range-label { font-size: 36px; }
   .view-seg { order: -1; }
   /* Bigger touch targets + readable HUD on phones. */
   .map-zoom { right: 12px; bottom: 14px; }
@@ -2960,56 +2993,117 @@ function peakWidth(t) {
   const base = mclamp(34 + (t.mins || 0) * 0.34, 38, 120);
   return base * (t.isMIT ? 1.12 : 1);
 }
-// Mountain silhouette: base sits at cy, apex points up by peakHeight.
+// Mountain silhouette (etched-map style): base sits at cy, apex points up by
+// peakHeight. Concave flanks + a small shoulder summit on the left — reads as
+// a hand-drawn cartographic mountain, not a flat triangle.
 function peakPathD(cx, cy, t) {
-  const h = peakHeight(t), w = peakWidth(t), base = cy, apex = cy - h;
-  return `M ${(cx-w).toFixed(1)} ${base.toFixed(1)}`
-       + ` L ${(cx-w*0.45).toFixed(1)} ${(base-h*0.5).toFixed(1)}`
-       + ` L ${(cx-w*0.18).toFixed(1)} ${(base-h*0.78).toFixed(1)}`
-       + ` L ${cx.toFixed(1)} ${apex.toFixed(1)}`
-       + ` L ${(cx+w*0.22).toFixed(1)} ${(base-h*0.7).toFixed(1)}`
-       + ` L ${(cx+w*0.5).toFixed(1)} ${(base-h*0.46).toFixed(1)}`
-       + ` L ${(cx+w).toFixed(1)} ${base.toFixed(1)} Z`;
+  const h = peakHeight(t), w = peakWidth(t), b = cy, a = cy - h;
+  const f = (v) => v.toFixed(1);
+  return `M ${f(cx-w)} ${f(b)}`
+       + ` Q ${f(cx-w*0.62)} ${f(b-h*0.14)} ${f(cx-w*0.40)} ${f(b-h*0.50)}` // concave west flank
+       + ` L ${f(cx-w*0.30)} ${f(b-h*0.60)}`                                 // shoulder summit
+       + ` L ${f(cx-w*0.18)} ${f(b-h*0.48)}`                                 // saddle
+       + ` L ${f(cx)} ${f(a)}`                                               // main apex
+       + ` Q ${f(cx+w*0.32)} ${f(b-h*0.30)} ${f(cx+w)} ${f(b)}`              // concave east flank
+       + ` Z`;
 }
-// Snow cap near the apex for MIT peaks.
+// West flank in shadow (classic "lit from the east" relief): apex → ridgeline
+// down to the base, back along the base and up the west silhouette.
+function peakShadeD(cx, cy, t) {
+  const h = peakHeight(t), w = peakWidth(t), b = cy, a = cy - h;
+  const f = (v) => v.toFixed(1);
+  return `M ${f(cx)} ${f(a)}`
+       + ` L ${f(cx-w*0.05)} ${f(b-h*0.5)} L ${f(cx-w*0.10)} ${f(b)}`
+       + ` L ${f(cx-w)} ${f(b)}`
+       + ` Q ${f(cx-w*0.62)} ${f(b-h*0.14)} ${f(cx-w*0.40)} ${f(b-h*0.50)}`
+       + ` L ${f(cx-w*0.30)} ${f(b-h*0.60)} L ${f(cx-w*0.18)} ${f(b-h*0.48)} Z`;
+}
+// Etched interior lines: the main ridgeline + a spur off the shoulder.
+function peakDetailD(cx, cy, t) {
+  const h = peakHeight(t), w = peakWidth(t), b = cy, a = cy - h;
+  const f = (v) => v.toFixed(1);
+  return `M ${f(cx)} ${f(a)} L ${f(cx-w*0.05)} ${f(b-h*0.5)} L ${f(cx-w*0.10)} ${f(b)}`
+       + ` M ${f(cx-w*0.30)} ${f(b-h*0.60)} L ${f(cx-w*0.36)} ${f(b-h*0.28)} L ${f(cx-w*0.46)} ${f(b)}`;
+}
+// Snow cap for MIT peaks: a jagged-bottom band over the summit, clipped to the
+// peak body (renderMap wraps it in a per-peak clipPath) so it always hugs the
+// silhouette no matter the mountain's proportions.
 function snowCapD(cx, cy, t) {
-  const h = peakHeight(t), apex = cy - h, cw = peakWidth(t) * 0.32;
-  return `M ${(cx-cw).toFixed(1)} ${(apex+h*0.2).toFixed(1)}`
-       + ` L ${cx.toFixed(1)} ${apex.toFixed(1)}`
-       + ` L ${(cx+cw*0.7).toFixed(1)} ${(apex+h*0.16).toFixed(1)}`
-       + ` L ${(cx+cw*0.3).toFixed(1)} ${(apex+h*0.3).toFixed(1)}`
-       + ` L ${(cx-cw*0.5).toFixed(1)} ${(apex+h*0.28).toFixed(1)} Z`;
+  const h = peakHeight(t), w = peakWidth(t), apex = cy - h;
+  const f = (v) => v.toFixed(1);
+  return `M ${f(cx-w*0.5)} ${f(apex+h*0.26)}`
+       + ` L ${f(cx-w*0.30)} ${f(apex+h*0.16)}`
+       + ` L ${f(cx-w*0.10)} ${f(apex+h*0.23)}`
+       + ` L ${f(cx+w*0.12)} ${f(apex+h*0.14)}`
+       + ` L ${f(cx+w*0.32)} ${f(apex+h*0.27)}`
+       + ` L ${f(cx+w*0.5)} ${f(apex-2)}`
+       + ` L ${f(cx-w*0.5)} ${f(apex-2)} Z`;
 }
 function mapTrunc(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
-// Wide, low jagged ridge line spanning a category's peaks (simple line-art look).
-// Bumps up at each member's x; taller bump for longer tasks. Angular segments.
-function rangeRidgeD(members, minX, maxX, baseY) {
-  const sorted = members.slice().sort((a, b) => a.cx - b.cx);
-  const amp = 26;
-  const pts = [{ x: minX, y: baseY }];
-  for (let i = 0; i < sorted.length; i++) {
-    const m = sorted[i];
-    if (i > 0) { const prev = sorted[i - 1]; pts.push({ x: (prev.cx + m.cx) / 2, y: baseY - amp * 0.22 }); }
-    const bh = amp * mclamp(0.55 + (m.t.mins || 0) / 240, 0.55, 1.15);
-    pts.push({ x: mclamp(m.cx, minX, maxX), y: baseY - bh });
+function fmtMins(m) { const h = Math.floor(m / 60), mm = m % 60; return h ? (mm ? `${h}h ${mm}m` : `${h}h`) : `${mm}m`; }
+// Range emblem: a small etched ridge — three fixed summits regardless of how
+// many tasks the category holds (it's a territory mark, not a chart). The
+// height pattern rotates per category (seeded by id) so ranges differ subtly.
+const RANGE_AMP = 36;
+function rangeSeed(catId) {
+  let s = 0; const str = String(catId || '');
+  for (let i = 0; i < str.length; i++) s = (s + str.charCodeAt(i)) % 997;
+  return s;
+}
+function rangeRidgeD(rx1, rx2, baseY, seed) {
+  const W = rx2 - rx1, a = RANGE_AMP;
+  const hs = [0.52, 1.0, 0.70], rot = seed % 3;
+  const summits = [0.24, 0.50, 0.76].map((px, i) => ({ x: rx1 + W * px, h: a * hs[(i + rot) % 3] }));
+  const f = (v) => v.toFixed(1);
+  let d = `M ${f(rx1)} ${f(baseY)}`;
+  let prevX = rx1;
+  for (const p of summits) {
+    d += ` Q ${f((prevX + p.x) / 2)} ${f(baseY - a * 0.06)} ${f((prevX + p.x * 2) / 3)} ${f(baseY - p.h * 0.45)}`
+       + ` L ${f(p.x)} ${f(baseY - p.h)}`;
+    prevX = p.x;
+    d += ` L ${f(p.x + W * 0.07)} ${f(baseY - p.h * 0.40)}`;
   }
-  pts.push({ x: maxX, y: baseY });
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+  d += ` Q ${f((prevX + rx2) / 2)} ${f(baseY - a * 0.08)} ${f(rx2)} ${f(baseY)} Z`;
   return d;
 }
-// Faint axis guides: vertical duration ticks (with labels) + Y "earlier/later" caps.
+// Short ridgeline spurs off each summit — the etched detail strokes.
+function rangeSpurD(rx1, rx2, baseY, seed) {
+  const W = rx2 - rx1, a = RANGE_AMP;
+  const hs = [0.52, 1.0, 0.70], rot = seed % 3;
+  const f = (v) => v.toFixed(1);
+  let d = '';
+  [0.24, 0.50, 0.76].forEach((px, i) => {
+    const x = rx1 + W * px, h = a * hs[(i + rot) % 3];
+    d += `M ${f(x)} ${f(baseY - h)} L ${f(x - W * 0.035)} ${f(baseY - h * 0.35)} `;
+  });
+  return d;
+}
+// Axis guides, instrument-style: an hour ruler along the bottom (major ticks
+// each hour, minor each 30m, faint full-height gridlines) plus a central
+// vertical PRIORITY axis (top = important). Clean hairlines, no dashes.
 function mapAxisLayer() {
   const left = MAP_PAD, right = MAP_VB_W - MAP_PAD, top = MAP_PAD, bottom = MAP_VB_H - MAP_PAD;
+  const f = (v) => v.toFixed(1);
   let s = '';
-  const marks = [15, 30, 60, 120, 240, 480];
-  for (const m of marks) {
-    const cx = mclamp(autoX(m) * MAP_VB_W, left, right);
-    s += `<line class="map-axis-tick" x1="${cx.toFixed(1)}" y1="${top}" x2="${cx.toFixed(1)}" y2="${bottom}"/>`;
-    s += `<text class="map-axis-label" x="${cx.toFixed(1)}" y="${bottom + 24}" text-anchor="middle">${m < 60 ? m + 'm' : (m / 60) + 'h'}</text>`;
+  // ── time ruler (X = duration; autoX is linear over 0..8h) ──
+  s += `<line class="map-axis-base" x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}"/>`;
+  for (let m = 30; m < 480; m += 60) { // minor: every half-hour between the hours
+    const x = autoX(m) * MAP_VB_W;
+    s += `<line class="map-axis-tick-minor" x1="${f(x)}" y1="${bottom}" x2="${f(x)}" y2="${bottom - 8}"/>`;
   }
-  s += `<text class="map-axis-cap" x="${left}" y="${top + 4}" text-anchor="start">▲ earlier</text>`;
-  s += `<text class="map-axis-cap" x="${left}" y="${bottom - 2}" text-anchor="start">▼ later</text>`;
+  for (let hr = 1; hr <= 8; hr++) { // major: each hour, with gridline + label
+    const x = autoX(hr * 60) * MAP_VB_W;
+    s += `<line class="map-axis-grid" x1="${f(x)}" y1="${top}" x2="${f(x)}" y2="${bottom}"/>`;
+    s += `<line class="map-axis-tick" x1="${f(x)}" y1="${bottom}" x2="${f(x)}" y2="${bottom - 16}"/>`;
+    s += `<text class="map-axis-label" x="${f(x)}" y="${bottom + 30}" text-anchor="middle">${hr}h</text>`;
+  }
+  s += `<text class="map-axis-cap" x="${right}" y="${bottom + 52}" text-anchor="end">DURATION →</text>`;
+  // ── priority axis (centre vertical; up = more important) ──
+  const midX = MAP_VB_W / 2;
+  s += `<line class="map-axis-mid" x1="${midX}" y1="${top + 22}" x2="${midX}" y2="${bottom - 6}"/>`;
+  s += `<path class="map-axis-arrow" d="M ${midX - 8} ${top + 38} L ${midX} ${top + 20} L ${midX + 8} ${top + 38}"/>`;
+  s += `<text class="map-axis-cap" x="${midX + 16}" y="${top + 36}" text-anchor="start">PRIORITY · HIGH</text>`;
+  s += `<text class="map-axis-cap" x="${midX + 16}" y="${bottom - 14}" text-anchor="start">LOW</text>`;
   return `<g class="map-grid">${s}</g>`;
 }
 
@@ -3022,13 +3116,16 @@ function renderMap() {
   const n = peaksData.length;
   mapRangeBoxes = []; // reset up-front so the n===0 path can't leave stale ranges
 
-  // World backdrop (fills the whole pannable area) + a subtly brighter content panel.
+  // World backdrop (fills the whole pannable area) + the map sheet with its
+  // neatline (double cartographic frame — always on, guides or not).
   const bg = `<rect class="map-world-bg" x="${WORLD_X.toFixed(1)}" y="${WORLD_Y.toFixed(1)}" width="${WORLD_W.toFixed(1)}" height="${WORLD_H.toFixed(1)}"/>`
-    + `<rect class="map-bg" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" rx="18"/>`;
+    + `<rect class="map-bg" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" rx="6"/>`
+    + `<rect class="map-neatline" x="12" y="12" width="${MAP_VB_W - 24}" height="${MAP_VB_H - 24}"/>`
+    + `<rect class="map-neatline-inner" x="20" y="20" width="${MAP_VB_W - 40}" height="${MAP_VB_H - 40}"/>`;
   let html = bg + (mapGuides ? mapAxisLayer() : '');
 
   if (n === 0) {
-    html += `<text class="map-empty-label" x="${MAP_VB_W/2}" y="${MAP_VB_H/2}">Add a task to grow your first peak ⛰</text>`;
+    html += `<text class="map-empty-label" x="${MAP_VB_W/2}" y="${MAP_VB_H/2}">Add a task to raise your first peak</text>`;
     svg.innerHTML = html;
     bindMapHandlersOnce();
     return;
@@ -3041,7 +3138,7 @@ function renderMap() {
     const p = peakPos(t, i, n);
     const c = peakCenter(p.x, p.y);
     const h = peakHeight(t);
-    const cy = mclamp(c.cy, h + 70, MAP_VB_H - 38); // apex stays ≥ 70 from the top
+    const cy = mclamp(c.cy, h + 96, MAP_VB_H - 64); // headroom for the range header; room below for labels
     return { t, cx: c.cx, cy };
   });
 
@@ -3071,20 +3168,23 @@ function renderMap() {
     if (rx1 < 14) { rx2 += 14 - rx1; rx1 = 14; }
     if (rx2 > MAP_VB_W - 14) { rx1 -= rx2 - (MAP_VB_W - 14); rx2 = MAP_VB_W - 14; }
     rx1 = Math.max(rx1, 14);
-    const nameY = mclamp(topApex - 12, 44, MAP_VB_H - 40); // above the highest apex
-    const ridgeBaseY = nameY - 15;                          // ridge sits above the name
-    const ridgeD = rangeRidgeD(members, rx1, rx2, ridgeBaseY);
+    const nameY = mclamp(topApex - 14, 84, MAP_VB_H - 40); // above the highest apex
+    const ridgeBaseY = nameY - 26;                          // ridge sits above the name
+    const seed = rangeSeed(cat.id);
+    const ridgeD = rangeRidgeD(rx1, rx2, ridgeBaseY, seed);
+    const spurD = rangeSpurD(rx1, rx2, ridgeBaseY, seed);
     // Store the ridge segment + member peaks so membership can hug the actual
     // content (touch a peak / be near the ridge) instead of a big bounding box.
     mapRangeBoxes.push({ catId: cat.id, rx1, rx2, ridgeBaseY, members });
     const midX = (rx1 + rx2) / 2;
     // Big invisible grab zone covering the whole ridge+name header band, so the
     // range is easy to grab anywhere in it (the thin line alone was hard to hit).
-    const hitY = ridgeBaseY - 32, hitH = (nameY + 10) - hitY;
+    const hitY = ridgeBaseY - RANGE_AMP - 8, hitH = (nameY + 12) - hitY;
     ranges += `<g class="map-range" data-cat-id="${cat.id}" style="--cat-color:${cat.color}">`
       + `<g class="map-range-marker" data-cat-id="${cat.id}">`
       +   `<rect class="map-range-hit" x="${rx1.toFixed(1)}" y="${hitY.toFixed(1)}" width="${(rx2 - rx1).toFixed(1)}" height="${hitH.toFixed(1)}" rx="14"/>`
       +   `<path class="map-range-ridge" d="${ridgeD}"/>`
+      +   `<path class="map-range-spur" d="${spurD}"/>`
       +   `<text class="map-range-label" data-cat-id="${cat.id}" x="${midX.toFixed(1)}" y="${nameY.toFixed(1)}" text-anchor="middle">${esc(cat.name)}</text>`
       + `</g>`
       + `</g>`;
@@ -3097,7 +3197,11 @@ function renderMap() {
     const cat = t.categoryId ? categories.find(k => k.id === t.categoryId) : null;
     const catStyle = cat ? `style="--cat-color:${cat.color}"` : '';
     const cls = `map-peak${cat ? ' has-cat' : ''}${t.isMIT ? ' is-mit' : ''}${isHiddenToday(t) ? ' misted' : ''}${t.id === activeId ? ' active' : ''}${t.id === activeId && running ? ' running' : ''}${mapSelection.has(t.id) ? ' selected' : ''}`;
-    const cap = t.isMIT ? `<path class="map-peak-cap" d="${snowCapD(c.cx, c.cy, t)}"/>` : '';
+    // Snow cap is clipped to the body so it always hugs the silhouette.
+    const cap = t.isMIT
+      ? `<clipPath id="pkclip-${t.id}"><path d="${peakPathD(c.cx, c.cy, t)}"/></clipPath>`
+        + `<path class="map-peak-cap" clip-path="url(#pkclip-${t.id})" d="${snowCapD(c.cx, c.cy, t)}"/>`
+      : '';
     // Active peak controls: start/pause ▶ INSIDE the mountain body; complete ✓
     // sits on the apex (click the summit to finish).
     let apexCtl = '';
@@ -3114,10 +3218,15 @@ function renderMap() {
         + `<text x="${c.cx.toFixed(1)}" y="${(apex + 4).toFixed(1)}" text-anchor="middle">✓</text>`
         + `</g>`;
     }
+    const minsLbl = (t.mins || 0)
+      ? `<text class="map-peak-mins" x="${c.cx.toFixed(1)}" y="${(c.cy + 46).toFixed(1)}">${fmtMins(t.mins)}</text>` : '';
     peaks += `<g class="${cls}" data-task-id="${t.id}" data-cx="${c.cx.toFixed(1)}" data-cy="${c.cy.toFixed(1)}" ${catStyle}>`
       + `<path class="map-peak-body" d="${peakPathD(c.cx, c.cy, t)}"/>`
+      + `<path class="map-peak-shade" d="${peakShadeD(c.cx, c.cy, t)}"/>`
+      + `<path class="map-peak-detail" d="${peakDetailD(c.cx, c.cy, t)}"/>`
       + cap
-      + `<text class="map-peak-label" x="${c.cx.toFixed(1)}" y="${(c.cy + 18).toFixed(1)}">${esc(mapTrunc(t.name, 16))}</text>`
+      + `<text class="map-peak-label" x="${c.cx.toFixed(1)}" y="${(c.cy + 26).toFixed(1)}">${esc(mapTrunc(t.name, 22))}</text>`
+      + minsLbl
       + apexCtl
       + `</g>`;
   }
@@ -3129,10 +3238,9 @@ function renderMap() {
   const totalMins = visible.reduce((s, t) => s + (t.mins || 0), 0);
   if (totalMins > WORKDAY_MIN) {
     const x8 = autoX(WORKDAY_MIN) * MAP_VB_W;
-    const fmtH = (m) => { const h = Math.floor(m / 60), mm = m % 60; return mm ? `${h}h ${mm}m` : `${h}h`; };
     capacity = `<g class="map-overflow">`
       + `<rect class="map-overflow-band" x="${x8.toFixed(1)}" y="0" width="${(MAP_VB_W - x8).toFixed(1)}" height="${MAP_VB_H}"/>`
-      + `<text class="map-overflow-label" x="${MAP_VB_W - 24}" y="30" text-anchor="end">⚠ ${fmtH(totalMins)} planned · over 8h</text>`
+      + `<text class="map-overflow-label" x="${MAP_VB_W - 36}" y="46" text-anchor="end">⚠ ${fmtMins(totalMins)} planned · over 8h</text>`
       + `</g>`;
   }
 
