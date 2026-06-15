@@ -3357,8 +3357,7 @@ function renderMap() {
   fitMapCanvas();           // match canvas shape to the wrap so the map fills it (no letterbox)
   applyMapView();           // push the re-fitted viewBox before drawing
   const visible = tasks.filter(t => !t.done && !isHiddenToday(t));
-  const hidden  = tasks.filter(t => !t.done &&  isHiddenToday(t));
-  const peaksData = visible.concat(hidden); // visible first, then misted
+  const peaksData = visible; // "Not today" tasks are excluded from the map entirely (not just misted)
   const n = peaksData.length;
   mapRangeBoxes = []; // reset up-front so the n===0 path can't leave stale ranges
 
