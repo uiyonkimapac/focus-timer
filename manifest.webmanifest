@@ -1,6 +1,6 @@
 {
-  "name": "Focus Timer",
-  "short_name": "Focus",
+  "name": "Now This",
+  "short_name": "Now This",
   "description": "ADHD-friendly focus timer with a task list and Mountain Board planning map",
   "start_url": "./",
   "scope": "./",
