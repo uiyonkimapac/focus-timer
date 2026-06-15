@@ -14,3 +14,9 @@ m3-*.jpeg
 # Internal planning notes (kept local — not for the public repo)
 docs/COMMERCIALIZATION-ROADMAP.md
 docs/RECOMMENDATIONS.md
+
+# Test tooling (dev-only; the app itself stays a single static file)
+node_modules/
+test-results/
+playwright-report/
+/playwright/.cache/
