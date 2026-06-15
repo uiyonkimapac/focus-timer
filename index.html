@@ -10,7 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Baguet+Script&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Baguet+Script&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Caveat:wght@500;700&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #0f1117;
@@ -305,6 +305,69 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   -webkit-text-stroke: 1.5px var(--text2);
   paint-order: stroke fill;
 }
+/* Editable motivation: quiet by default; a subtle cue on hover, a real box on focus. */
+.motivate-line1, .motivate-line2 {
+  outline: none; cursor: text;
+  border-radius: 8px; padding: 2px 8px;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.motivate-line1:hover, .motivate-line2:hover { background: rgba(255,255,255,0.04); }
+.motivate-line1:focus, .motivate-line2:focus {
+  background: rgba(255,255,255,0.06);
+  box-shadow: inset 0 0 0 1px var(--border2);
+  -webkit-text-stroke-width: 0 !important; filter: none !important; /* legible while typing (beats inline styles) */
+}
+/* Empty line shows its default text faintly as a placeholder. */
+.motivate-line1:empty::before, .motivate-line2:empty::before {
+  content: attr(data-placeholder); opacity: 0.35;
+}
+/* ── Motivation style customizer ── */
+.motivate-text { position: relative; }
+.motivate-custom-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 12px auto 0; padding: 4px 12px;
+  font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.3px;
+  color: var(--text3); background: transparent;
+  border: 1px solid var(--border); border-radius: 14px; cursor: pointer;
+  opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+.motivate-text:hover .motivate-custom-toggle,
+.motivate-custom-toggle:focus-visible,
+.motivate-text.customizing .motivate-custom-toggle { opacity: 1; }
+.motivate-custom-toggle:hover { color: var(--text); border-color: var(--border2); }
+.motivate-customizer {
+  display: none; position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(100% + 8px); width: 260px; padding: 12px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 12px; box-shadow: 0 14px 44px rgba(0,0,0,0.45);
+  text-align: left; z-index: 60;
+}
+.motivate-customizer.open { display: block; }
+.mc-target { display: flex; gap: 4px; background: var(--surface3); padding: 3px; border-radius: 8px; margin-bottom: 12px; }
+.mc-tab {
+  flex: 1; padding: 5px 0; border: none; border-radius: 6px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+  background: transparent; color: var(--text2); transition: all 0.15s;
+}
+.mc-tab.active { background: var(--surface); color: var(--text); font-weight: 600; }
+.mc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+.mc-row > span { font-family: 'DM Sans', sans-serif; font-size: 11px; color: var(--text3); white-space: nowrap; }
+.mc-row > span em { font-style: normal; color: var(--text); font-family: 'DM Mono', monospace; }
+.mc-font {
+  flex: 1; min-width: 0; padding: 6px 8px; border-radius: 7px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer;
+}
+.mc-size { flex: 1; min-width: 0; accent-color: var(--accent); cursor: pointer; }
+.mc-row-color { align-items: flex-start; }
+.mc-swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: 1; }
+.mc-swatch {
+  width: 100%; aspect-ratio: 1; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; padding: 0; background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px rgba(128,128,128,0.55); /* ring keeps white & black swatches visible */
+}
+.mc-swatch.active { border-color: var(--text); }
+.mc-hint { font-family: 'DM Sans', sans-serif; font-size: 10px; line-height: 1.5; color: var(--text3); opacity: 0.8; margin-top: 2px; }
 .stat-card {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 10px 8px; text-align: center;
@@ -1529,9 +1592,32 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
       <div class="stat-lbl">Done Today</div>
     </div>
   </div>
-  <div class="motivate-text">
-    <div class="motivate-line1">Now or Never!</div>
-    <div class="motivate-line2">Right Now, Right Here</div>
+  <div class="motivate-text" id="motivateText">
+    <div class="motivate-line1" id="motivate1" contenteditable="true" spellcheck="false"
+      role="textbox" aria-label="Motivational line 1 — click to edit"
+      data-placeholder="Now or Never!" title="Click to edit your motivation">Now or Never!</div>
+    <div class="motivate-line2" id="motivate2" contenteditable="true" spellcheck="false"
+      role="textbox" aria-label="Motivational line 2 — click to edit"
+      data-placeholder="Right Now, Right Here" title="Click to edit your motivation">Right Now, Right Here</div>
+    <button class="motivate-custom-toggle" id="motivateCustomBtn" onclick="toggleMotivateCustomizer()"
+      title="Customize font, size and color" aria-label="Customize motivation style">Aa · style</button>
+    <div class="motivate-customizer" id="motivateCustomizer" role="dialog" aria-label="Motivation style">
+      <div class="mc-target" role="tablist">
+        <button class="mc-tab active" data-line="1" onclick="setMotivateTarget(1,this)">Line 1</button>
+        <button class="mc-tab" data-line="2" onclick="setMotivateTarget(2,this)">Line 2</button>
+      </div>
+      <label class="mc-row"><span>Font</span>
+        <select class="mc-font" id="mcFont" onchange="applyMotivateStyle('font', this.value)"></select>
+      </label>
+      <label class="mc-row"><span>Size <em id="mcSizeVal">38</em></span>
+        <input class="mc-size" id="mcSize" type="range" min="14" max="72" step="1"
+          oninput="applyMotivateStyle('size', this.value)"/>
+      </label>
+      <div class="mc-row mc-row-color"><span>Color</span>
+        <div class="mc-swatches" id="mcSwatches"></div>
+      </div>
+      <div class="mc-hint">Recommended: 28–48px (headline) · 18–30px (subline)</div>
+    </div>
   </div>
 </div>
 
@@ -4802,6 +4888,12 @@ loadAll();
   if (mg === '0') mapGuides = false;
   const gBtn = document.getElementById('btnGuides');
   if (gBtn && mapGuides) gBtn.classList.add('active-mode');
+  // Restore the user's custom motivation text (falls back to the default markup).
+  [['motivate1','focustimer_motivate1'], ['motivate2','focustimer_motivate2']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    const saved = localStorage.getItem(key);
+    if (el && saved !== null) el.textContent = saved; // '' is valid → shows the faint placeholder
+  });
   syncThemeColorMeta();
 })();
 // PWA: offline shell + installability. file:// (local double-click) skips it.
@@ -4819,6 +4911,138 @@ setInterval(() => {
   clearExpiredNotToday();
   renderMeta();
 }, 60000);
+
+// motivation lines: editable + persisted (plain text only, single line each)
+(function bindMotivation() {
+  [['motivate1','focustimer_motivate1'], ['motivate2','focustimer_motivate2']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const save = () => localStorage.setItem(key, el.textContent.trim());
+    el.addEventListener('input', save);
+    el.addEventListener('blur', save);
+    // Enter commits (no multi-line / no <div> soup); Esc drops focus.
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); el.blur(); }
+    });
+    // Paste as plain text so pasted formatting can't break the script styling.
+    el.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\s+/g, ' ').trim();
+      document.execCommand('insertText', false, text);
+    });
+  });
+})();
+
+// ── Motivation style customizer: per-line font / size / color, persisted ──
+const MOTIVE_FONTS = [
+  { label: 'Script — Baguet',     css: "'Baguet Script', cursive" },
+  { label: 'Handwritten — Caveat',css: "'Caveat', cursive" },
+  { label: 'Serif — Playfair',    css: "'Playfair Display', Georgia, serif" },
+  { label: 'Serif — Cormorant',   css: "'Cormorant Garamond', Georgia, serif" },
+  { label: 'Display — Bebas',     css: "'Bebas Neue', sans-serif" },
+  { label: 'Sans — DM Sans',      css: "'DM Sans', sans-serif" },
+];
+const MOTIVE_COLORS = [
+  { label: 'Accent', css: 'var(--accent)' },
+  { label: 'Theme',  css: 'var(--text2)' },
+  { label: 'Gold',   css: '#d4a017' },
+  { label: 'Teal',   css: '#16a085' },
+  { label: 'Sky',    css: '#2980b9' },
+  { label: 'Violet', css: '#8e44ad' },
+  { label: 'White',  css: '#ffffff' },
+  { label: 'Black',  css: '#000000' },
+];
+let motiveStyle = {
+  1: { font: "'Baguet Script', cursive", size: 38, color: 'var(--accent)' },
+  2: { font: "'Baguet Script', cursive", size: 22, color: 'var(--text2)' },
+};
+let motiveTarget = 1;
+let motiveCustomizerBuilt = false;
+
+function applyMotiveStyleToEl(line) {
+  const el = document.getElementById('motivate' + line);
+  if (!el) return;
+  const s = motiveStyle[line];
+  el.style.fontFamily = s.font;
+  el.style.fontSize = s.size + 'px';
+  el.style.color = s.color;
+  // Stroke + glow scale with size and track the chosen color so the etched
+  // headline look stays cohesive at any size/colour.
+  el.style.webkitTextStrokeWidth = (s.size * 0.05).toFixed(2) + 'px';
+  el.style.webkitTextStrokeColor = s.color;
+  if (line === 1) el.style.filter = `drop-shadow(0 0 ${Math.round(s.size * 0.3)}px ${s.color})`;
+}
+function saveMotiveStyle() {
+  localStorage.setItem('focustimer_motiveStyle', JSON.stringify(motiveStyle));
+}
+function applyMotivateStyle(prop, val) {
+  motiveStyle[motiveTarget][prop] = prop === 'size' ? +val : val;
+  applyMotiveStyleToEl(motiveTarget);
+  saveMotiveStyle();
+  if (prop === 'size') { const v = document.getElementById('mcSizeVal'); if (v) v.textContent = val; }
+  if (prop === 'color') syncMotiveSwatches();
+}
+function setMotivateTarget(line, btn) {
+  motiveTarget = line;
+  document.querySelectorAll('.mc-tab').forEach(t => t.classList.toggle('active', t === btn));
+  syncMotiveControls();
+}
+function syncMotiveSwatches() {
+  const cur = motiveStyle[motiveTarget].color;
+  document.querySelectorAll('.mc-swatch').forEach(sw => sw.classList.toggle('active', sw.dataset.css === cur));
+}
+function syncMotiveControls() {
+  const s = motiveStyle[motiveTarget];
+  const f = document.getElementById('mcFont'); if (f) f.value = s.font;
+  const sz = document.getElementById('mcSize'); if (sz) sz.value = s.size;
+  const sv = document.getElementById('mcSizeVal'); if (sv) sv.textContent = s.size;
+  syncMotiveSwatches();
+}
+function buildMotiveCustomizer() {
+  if (motiveCustomizerBuilt) return;
+  const fontSel = document.getElementById('mcFont');
+  fontSel.innerHTML = MOTIVE_FONTS.map(f => `<option value="${f.css.replace(/"/g,'&quot;')}" style="font-family:${f.css}">${f.label}</option>`).join('');
+  const sw = document.getElementById('mcSwatches');
+  sw.innerHTML = MOTIVE_COLORS.map(c =>
+    `<button class="mc-swatch" type="button" data-css="${c.css}" title="${c.label}" aria-label="${c.label}" style="background:${c.css}"></button>`).join('');
+  sw.querySelectorAll('.mc-swatch').forEach(b => b.addEventListener('click', () => applyMotivateStyle('color', b.dataset.css)));
+  motiveCustomizerBuilt = true;
+}
+function toggleMotivateCustomizer() {
+  const pop = document.getElementById('motivateCustomizer');
+  const wrap = document.getElementById('motivateText');
+  const open = !pop.classList.contains('open');
+  if (open) { buildMotiveCustomizer(); syncMotiveControls(); }
+  pop.classList.toggle('open', open);
+  wrap.classList.toggle('customizing', open);
+  if (open) {
+    setTimeout(() => {
+      document.addEventListener('pointerdown', motiveOutsideClose, true);
+      document.addEventListener('keydown', motiveEscClose, true);
+    }, 0);
+  } else { closeMotiveListeners(); }
+}
+function motiveOutsideClose(e) {
+  if (!document.getElementById('motivateText').contains(e.target)) closeMotivateCustomizer();
+}
+function motiveEscClose(e) { if (e.key === 'Escape') closeMotivateCustomizer(); }
+function closeMotiveListeners() {
+  document.removeEventListener('pointerdown', motiveOutsideClose, true);
+  document.removeEventListener('keydown', motiveEscClose, true);
+}
+function closeMotivateCustomizer() {
+  document.getElementById('motivateCustomizer').classList.remove('open');
+  document.getElementById('motivateText').classList.remove('customizing');
+  closeMotiveListeners();
+}
+// Restore saved motivation styling and apply it (runs after motiveStyle exists).
+(function initMotiveStyle() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('focustimer_motiveStyle') || 'null');
+    if (saved) { if (saved[1]) Object.assign(motiveStyle[1], saved[1]); if (saved[2]) Object.assign(motiveStyle[2], saved[2]); }
+  } catch (_) {}
+  applyMotiveStyleToEl(1); applyMotiveStyleToEl(2);
+})();
 
 // memo: bind once
 (function bindMemo() {
@@ -4866,7 +5090,9 @@ document.addEventListener('visibilitychange', () => {
 })();
 
 document.addEventListener('keydown', e => {
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  // Don't hijack keys while typing in a field — incl. contenteditable (the
+  // motivation text), else Space toggles the timer and R resets it mid-edit.
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable) return;
   if(e.code==='Space'){e.preventDefault();toggleTimer();}
   if(e.code==='KeyR') resetTimer();
 });
