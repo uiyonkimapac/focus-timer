@@ -1262,13 +1262,14 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
   .btn-edit, .btn-del, .cat-actions, .cat-grip { opacity: 1; }
   .btn-mit { opacity: 0.7; }
   .btn-not-today { opacity: 0.55; }
+  .btn-recur { opacity: 0.55; }
 
   /* Stretch each small control's hit zone to ~44px without growing the
      visual: generous vertically (cards have head-room), tight horizontally
      (the .task-right cluster packs buttons side by side). */
-  .btn-edit, .btn-del, .btn-mit, .btn-not-today, .btn-start-task,
+  .btn-edit, .btn-del, .btn-mit, .btn-not-today, .btn-recur, .btn-start-task,
   .check-wrap, .time-badge, .cat-dot, .drag-handle, .cat-grip { position: relative; }
-  .btn-edit::after, .btn-del::after, .btn-mit::after, .btn-not-today::after,
+  .btn-edit::after, .btn-del::after, .btn-mit::after, .btn-not-today::after, .btn-recur::after,
   .btn-start-task::after, .check-wrap::after, .time-badge::after,
   .cat-dot::after, .drag-handle::after, .cat-grip::after {
     content: ''; position: absolute; inset: -10px -3px;
@@ -1395,6 +1396,18 @@ body.light .btn-mit.active { color: #fff; }
 .task-card:hover .btn-not-today { opacity: 0.55; }
 .btn-not-today:hover { opacity: 1; color: var(--text); }
 .btn-not-today.active { opacity: 1; color: var(--text2); }
+/* Recurring tasks: same quiet affordance as the moon button. */
+.btn-recur {
+  opacity: 0; background: none; border: none;
+  color: var(--text3); cursor: pointer;
+  padding: 2px 4px; transition: opacity 0.15s, color 0.15s, transform 0.15s; line-height: 0;
+}
+.btn-recur .ico-repeat { width: 15px; height: 15px; display: block; }
+.task-card:hover .btn-recur { opacity: 0.55; }
+.btn-recur:hover { opacity: 1; color: var(--text); transform: scale(1.12); }
+.btn-recur.active { opacity: 1; color: var(--accent); }
+.tag-recur { font-size: 10px; color: var(--accent); font-weight: 500; display: inline-flex; align-items: center; gap: 3px; }
+.tag-recur .ico-repeat { width: 11px; height: 11px; }
 .streak-warn {
   display: inline-block;
   margin-left: 8px;
@@ -2890,6 +2903,8 @@ function renderTaskCard(t) {
   const streakWarn = (t.notTodayStreak >= 3) ? '<span class="streak-warn" title="Snoozed multiple days in a row">FACE IT!</span>' : '';
   const mitBtn = !t.done ? `<button class="btn-mit ${t.isMIT?'active':''}" onclick="event.stopPropagation();toggleMIT(${t.id})" title="${t.isMIT?'Remove Most Important':'Mark as Most Important Task'}">MIT</button>` : '';
   const moonBtn = !t.done ? `<button class="btn-not-today ${hidden?'active':''}" onclick="event.stopPropagation();toggleNotToday(${t.id})" title="${hidden?'Bring back to today':'Not today (auto-returns tomorrow)'}">🌙</button>` : '';
+  const recurBtn = !t.done ? `<button class="btn-recur ${t.recur?'active':''}" onclick="event.stopPropagation();cycleRecur(${t.id})" title="${esc(recurTitle(t))}">${REPEAT_SVG}</button>` : '';
+  const recurTag = t.recur ? `<span class="tag-recur" title="${esc(recurTitle(t))}">${REPEAT_SVG}${esc(recurLabel(t))}</span>` : '';
   return `
   <div class="task-card${catClass}${mitClass} ${isAct?'selected':''} ${t.done?'done':''}"
        data-task-id="${t.id}"
@@ -2902,7 +2917,7 @@ function renderTaskCard(t) {
     <div class="check-wrap" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</div>
     <div class="task-info">
       <div class="task-name" ${!t.done ? `ondblclick="event.stopPropagation();renameTask(${t.id})" title="Double-click to rename"` : ''}>${esc(t.name)}${streakWarn}</div>
-      <div class="task-meta">${srcTag}${sessTag}</div>
+      <div class="task-meta">${srcTag}${sessTag}${recurTag}</div>
       ${pct>0?`<div class="time-bar"><div class="time-bar-fill" style="width:${pct}%"></div></div>`:''}
     </div>
     <div class="task-right">
@@ -2910,6 +2925,7 @@ function renderTaskCard(t) {
         ${[15,25,30,45,60].map(m=>`<button class="time-quick-btn" onclick="event.stopPropagation();setTaskTime(${t.id},${m});closeTE(${t.id})">${m}m</button>`).join('')}
       </div>
       <div class="time-badge" onclick="event.stopPropagation();toggleTE(${t.id})" title="Click to change time">${fmtSecs(t.secsRemaining)}</div>
+      ${recurBtn}
       ${moonBtn}
       ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? '⏸' : '▶'}</button>` : ''}
       ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">✎</button>` : ''}
@@ -4871,6 +4887,70 @@ function isHiddenToday(t) {
   return t.notTodayDayKey === todayKey();
 }
 
+// ── RECURRING TASKS ──
+// A recurring task is a SINGLE instance that revives on its next due day (no
+// pile-up of missed occurrences). Completing it logs to history as usual; the
+// archived completion stays, and the task comes back fresh when due.
+const RECUR_ORDER = [null, 'daily', 'weekdays', 'weekly'];
+const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+// Music-player "repeat" glyph (two looping arrows), line-art to match the app.
+const REPEAT_SVG = '<svg class="ico-repeat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>';
+function recurLabel(t) {
+  if (!t.recur) return '';
+  if (t.recur === 'daily') return 'daily';
+  if (t.recur === 'weekdays') return 'weekdays';
+  if (t.recur === 'weekly') return 'weekly · ' + DOW_SHORT[(t.recurDay != null ? t.recurDay : new Date().getDay())];
+  return '';
+}
+function recurTitle(t) {
+  return t.recur
+    ? `Repeats ${recurLabel(t)} — click to change`
+    : 'Make this repeat (daily / weekdays / weekly)';
+}
+function cycleRecur(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  const i = RECUR_ORDER.indexOf(t.recur || null);
+  t.recur = RECUR_ORDER[(i + 1) % RECUR_ORDER.length];
+  if (t.recur === 'weekly') t.recurDay = new Date().getDay();
+  else delete t.recurDay;
+  bumpDataTimestamp();
+  renderTasks(); saveAll();
+}
+// The next calendar day (midnight ms) a completed recurring task is due again.
+// Robust to missed days: returns the FIRST matching day strictly after completion.
+function recurNextDue(t) {
+  if (!t.recur || !t.completedAt) return null;
+  const d = new Date(t.completedAt); d.setHours(0, 0, 0, 0);
+  if (t.recur === 'daily') { d.setDate(d.getDate() + 1); }
+  else if (t.recur === 'weekdays') { do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); }
+  else if (t.recur === 'weekly') { const rd = (t.recurDay != null ? t.recurDay : new Date(t.completedAt).getDay()); do { d.setDate(d.getDate() + 1); } while (d.getDay() !== rd); }
+  else return null;
+  return d.getTime();
+}
+// Revive any completed recurring task whose next due day has arrived. Mirrors
+// clearExpiredNotToday: runs on load, the 60s tick, and on returning to foreground.
+function reviveRecurringTasks() {
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const today0 = t0.getTime();
+  let mutated = false;
+  for (const t of tasks) {
+    if (!t.recur || !t.done || !t.completedAt) continue;
+    const due = recurNextDue(t);
+    if (due != null && today0 >= due) {
+      t.done = false;
+      t.completedAt = null;
+      t._histId = null; // the past completion stays in history; next one mints a new row
+      t.secsRemaining = (t.mins || 0) * 60;
+      t.secsSpent = 0;
+      t.sessions = 0;
+      mutated = true;
+    }
+  }
+  if (mutated) saveAll();
+  return mutated;
+}
+
 // ── PHASE 1: MIT ──
 function toggleMIT(id) {
   const t = tasks.find(x => x.id === id);
@@ -4978,14 +5058,18 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 clearExpiredNotToday();
+reviveRecurringTasks();
 updateDisplay(); updateRing(); updateTopBar(); renderDots();
 renderTasks(); updateStats(); renderActivePill();
 renderClock();
 renderMeta();
 // Live-refresh meta date once a minute so the weekday rolls over without a reload.
 setInterval(() => {
-  // Cheap: also catches snoozed tasks that auto-return after midnight.
-  clearExpiredNotToday();
+  // Cheap: also catches snoozed tasks auto-returning + recurring tasks coming
+  // due after midnight while the app stays open.
+  const a = clearExpiredNotToday();
+  const b = reviveRecurringTasks();
+  if (a || b) renderTasks();
   renderMeta();
 }, 60000);
 
@@ -5145,9 +5229,10 @@ document.addEventListener('visibilitychange', () => {
   // Returning from background after midnight should reveal hidden-today tasks.
   if (!document.hidden) {
     const before = tasks.filter(isHiddenToday).length;
-    clearExpiredNotToday();
+    const cleared = clearExpiredNotToday();
+    const revived = reviveRecurringTasks();
     const after = tasks.filter(isHiddenToday).length;
-    if (after !== before) { renderTasks(); }
+    if (after !== before || cleared || revived) { renderTasks(); }
     renderMeta();
   }
 });
