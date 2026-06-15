@@ -319,6 +319,10 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 .main-area {
   flex: 1; display: flex; flex-direction: column;
   min-width: 0;
+  /* App-shell on desktop: pin to the viewport so the Map fills all available
+     height (no page scroll cutting it off below the fold). Inner scroll areas
+     (.task-scroll/.history-scroll) handle overflow. Mobile reverts this below. */
+  height: 100vh; height: 100dvh; overflow: hidden;
 }
 
 /* top nav tabs */
@@ -351,8 +355,8 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   background: var(--green-soft); color: var(--green);
   border-color: rgba(41,128,185,0.30);
 }
-.tab-content { flex: 1; display: flex; flex-direction: column; }
-.tab-pane { display: none; flex: 1; flex-direction: column; }
+.tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.tab-pane { display: none; flex: 1; flex-direction: column; min-height: 0; }
 .tab-pane.active { display: flex; }
 
 /* ── TASKS PANE ── */
@@ -403,6 +407,11 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   position: relative; overflow: hidden;
   padding: 0 28px 20px;
 }
+/* In Map view the quick-time chips (they only seed the add-task duration) and
+   the meta date line aren't needed — reclaim that vertical space for the map. */
+body.map-mode .quick-times { display: none; }
+body.map-mode .tasks-pane { padding-bottom: 8px; }
+body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 #mapSvg { width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
 /* Touch: no text-selection / magnifier-callout on long-press (it's a gesture here). */
 #mapSvg, #mapSvg * { -webkit-user-select: none; user-select: none; }
@@ -578,7 +587,7 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 }
 .qt-btn:hover, .qt-btn.sel { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .task-scroll {
-  flex: 1;
+  flex: 1; min-height: 0; overflow-y: auto;
   display: flex; flex-direction: column; gap: 6px; padding-right: 4px;
   padding-bottom: 32px;
 }
@@ -700,7 +709,8 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 
 /* day groups */
 .history-scroll {
-  flex: 1; display: flex; flex-direction: column; gap: 20px;
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
   padding-bottom: 40px;
 }
 .day-group {}
@@ -1110,8 +1120,10 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
 
   .motivate-text { display: none; }
 
-  /* main area takes the rest */
-  .main-area { flex: none; }
+  /* main area takes the rest — mobile uses page scroll, not the desktop
+     app-shell, so undo the pinned viewport height + inner-scroll clipping. */
+  .main-area { flex: none; height: auto; overflow: visible; }
+  .task-scroll, .history-scroll { overflow: visible; }
 
   .tab-nav { padding: 0 12px; flex-wrap: wrap; gap: 4px; }
   .tab-btn { padding: 12px 10px 10px; font-size: 12px; }
@@ -1137,7 +1149,9 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
 
   /* Map view: give the SVG a concrete height (parent is no longer flex:1 on
      mobile) and enlarge in-SVG text so labels stay legible when scaled down. */
-  .map-wrap { padding: 0 8px 12px; min-height: 340px; height: 56vh; }
+  /* flex:none so the explicit height wins (otherwise the flex-basis collapses
+     it to min-height); page scrolls past the timer to reach a tall map. */
+  .map-wrap { flex: none; padding: 0 8px 12px; min-height: 420px; height: 68vh; }
   .map-axis-label { font-size: 20px; }
   .map-axis-cap { font-size: 16px; }
   .map-peak-label { font-size: 26px; }
@@ -2795,6 +2809,7 @@ function renderTasks() {
   const mapWrap = document.getElementById('mapWrap');
   const taskListEl = document.getElementById('taskList');
   const guidesBtn = document.getElementById('btnGuides');
+  document.body.classList.toggle('map-mode', viewMode === 'map');
   if (viewMode === 'map') {
     if (taskListEl) taskListEl.style.display = 'none';
     if (mapWrap) mapWrap.style.display = 'block';
@@ -2893,7 +2908,8 @@ function renderTasks() {
 // (SVG mountain silhouettes), categories = ranges (soft hull around members).
 // X ≈ duration (mins), Y ≈ list order (earlier→later) — guides, never rules.
 // mapX/mapY (normalized 0..1) persist only once the user drags (M2).
-const MAP_VB_W = 1600, MAP_VB_H = 1024; // large content canvas — room for many tasks
+const MAP_VB_W = 1600;     // content-canvas width (fixed); height adapts to the container
+let MAP_VB_H = 1024;       // recomputed by fitMapCanvas() so the sheet fills the wrap (no letterbox)
 const MAP_PAD = 56;        // inner margin in viewBox units (keeps glyphs off the edge)
 const WORKDAY_MIN = 480;   // 8h ≈ full map width
 let mapRangeBoxes = [];    // [{catId,minX,minY,maxX,maxY}] — refreshed each renderMap, used for drop hit-test
@@ -2907,15 +2923,37 @@ let mapGuides = true;      // show the time-axis guides (M5)
 // Zoom is expressed in % where 100% = the whole world fits (most zoomed-out =
 // the floor) and zooming IN goes above 100%, up to ZOOM_MAX_PCT. The +/- buttons
 // step by ZOOM_STEP (≈40%); the wheel/pinch zoom continuously.
-const MAP_ASPECT = MAP_VB_H / MAP_VB_W;
-const WORLD_W = MAP_VB_W * 1.25;           // small margin around the content
-const WORLD_H = WORLD_W * MAP_ASPECT;
-const WORLD_X = (MAP_VB_W - WORLD_W) / 2;  // centered on the content
-const WORLD_Y = (MAP_VB_H - WORLD_H) / 2;
+let MAP_ASPECT = MAP_VB_H / MAP_VB_W;
+// The world == the sheet (no surrounding margin), so the most zoomed-out view is
+// the full map filling the wrap edge-to-edge — no wasted dark space around it.
+const WORLD_W = MAP_VB_W;
+let WORLD_H = WORLD_W * MAP_ASPECT;
+const WORLD_X = (MAP_VB_W - WORLD_W) / 2;  // 0 — sheet and world coincide
+let WORLD_Y = (MAP_VB_H - WORLD_H) / 2;    // 0
 const ZOOM_MAX_PCT = 400;                  // most zoomed-in
 const ZOOM_STEP = 1.4;                     // per +/- button press
-let mapView = { x: 0, y: 0, w: MAP_VB_W, h: MAP_VB_H }; // default ≈ fit the content (~125%)
+let mapView = { x: 0, y: 0, w: MAP_VB_W, h: MAP_VB_H }; // default = whole sheet (100%, the floor)
 const MAP_MIN_W = WORLD_W / (ZOOM_MAX_PCT / 100); // 100% = WORLD_W (floor), 400% = WORLD_W/4
+// Match the content-canvas aspect ratio to the map wrap so the SVG (preserveAspectRatio
+// "meet") has nothing to letterbox — the sheet fills the container. Re-fits the current
+// zoom window to the new shape, keeping zoom level and centre. Called on render + resize.
+function fitMapCanvas() {
+  const svg = document.getElementById('mapSvg');
+  if (!svg) return;
+  const r = svg.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const aspect = mclamp(r.height / r.width, 0.5, 1.8); // wide desktop … tall portrait phone
+  MAP_VB_H = Math.round(MAP_VB_W * aspect);
+  MAP_ASPECT = MAP_VB_H / MAP_VB_W;
+  WORLD_H = WORLD_W * MAP_ASPECT;
+  WORLD_Y = (MAP_VB_H - WORLD_H) / 2;
+  // Preserve the current zoom centre while reshaping the view to the new aspect.
+  const cx = mapView.x + mapView.w / 2, cy = mapView.y + mapView.h / 2;
+  mapView.h = mapView.w * MAP_ASPECT;
+  mapView.x = cx - mapView.w / 2;
+  mapView.y = cy - mapView.h / 2;
+  clampMapView(mapView);
+}
 function mapZoomPct() { return Math.round(WORLD_W / mapView.w * 100); }
 function clampMapView(v) {
   v.w = mclamp(v.w, MAP_MIN_W, WORLD_W);
@@ -3172,6 +3210,8 @@ function mapAxisLayer() {
 function renderMap() {
   const svg = document.getElementById('mapSvg');
   if (!svg) return;
+  fitMapCanvas();           // match canvas shape to the wrap so the map fills it (no letterbox)
+  applyMapView();           // push the re-fitted viewBox before drawing
   const visible = tasks.filter(t => !t.done && !isHiddenToday(t));
   const hidden  = tasks.filter(t => !t.done &&  isHiddenToday(t));
   const peaksData = visible.concat(hidden); // visible first, then misted
@@ -3495,6 +3535,7 @@ function onMapPointerMove(e) {
 function hitTestRange(px, py, draggedId) {
   const dt = draggedId != null ? tasks.find(t => t.id === draggedId) : null;
   const dHalf = dt ? peakWidth(dt) * 0.5 : 0;
+  const dH = dt ? peakHeight(dt) : 0;
   let best = null, bestScore = Infinity;
   for (const b of mapRangeBoxes) {
     let score = Infinity;
@@ -3502,11 +3543,18 @@ function hitTestRange(px, py, draggedId) {
     if (px >= b.rx1 - 22 && px <= b.rx2 + 22 && py >= b.ridgeBaseY - 30 && py <= b.ridgeBaseY + 72) {
       score = Math.abs(py - (b.ridgeBaseY + 18));
     }
-    // (b) touching a member peak's body (its footprint + the dragged peak's half-width)
+    // (b) close to a member peak — measure the GAP between the two mountain bodies
+    // (not just the member's footprint), so a peak stacked ABOVE or BELOW a member
+    // still counts as "together" as long as it's near. The vertical reach scales
+    // with the peaks' heights so big mountains group from a bit farther.
     for (const m of b.members) {
       if (m.t.id === draggedId) continue;
-      const W = peakWidth(m.t) + dHalf + 8, H = peakHeight(m.t) + 12;
-      if (px >= m.cx - W && px <= m.cx + W && py >= m.cy - H && py <= m.cy + 18) {
+      const mW = peakWidth(m.t), mH = peakHeight(m.t);
+      // dragged body spans [px±(dHalf), py-dH .. py+16]; member [m.cx±mW, m.cy-mH .. m.cy+16]
+      const hGap = Math.abs(px - m.cx) - (mW + dHalf + 8);          // ≤0 = horizontally overlapping
+      const vGap = Math.max((py - dH) - (m.cy + 16), (m.cy - mH) - (py + 16), 0); // body-to-body vertical gap
+      const VREACH = Math.max(mH, dH) + 56;                         // allowed vertical separation
+      if (hGap <= 0 && vGap <= VREACH) {
         score = Math.min(score, Math.hypot(px - m.cx, py - m.cy));
       }
     }
@@ -3689,6 +3737,17 @@ function bindMapHandlersOnce() {
   window.addEventListener('keydown', panReady);
   window.addEventListener('keyup', panReady);
   window.addEventListener('blur', () => { svg.classList.remove('pan-ready'); if (mapDrag) cancelMapDrag(); mapPointers.clear(); mapPinch = null; });
+  // Re-fit the canvas shape (and redraw) when the wrap changes size — window resize
+  // or phone rotation — so the map keeps filling it instead of letterboxing.
+  const wrap = document.getElementById('mapWrap');
+  if (wrap && 'ResizeObserver' in window) {
+    let rT = null;
+    new ResizeObserver(() => {
+      if (viewMode !== 'map' || mapDrag) return;
+      clearTimeout(rT);
+      rT = setTimeout(() => { if (viewMode === 'map' && !mapDrag) renderMap(); }, 120);
+    }).observe(wrap);
+  }
   applyMapView();
   mapHandlersBound = true;
 }
