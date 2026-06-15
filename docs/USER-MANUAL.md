@@ -169,6 +169,7 @@ Open **Sync** (top of the left panel) → enter the **same sync code** on each d
 | Symptom | Fix |
 |---|---|
 | Sounds don't play | Tap/press something first — browsers require one interaction before audio |
+| "Storage full" toast appears | Your device's local storage is full (usually very long history or large notes). Your latest change wasn't saved — tap **Save Report** to export, then **Clear Done** / archive old items to free space |
 | New version doesn't show up | The app updates on the next *online* refresh; close and reopen once |
 | Long-press shows no keyboard (iOS) | Release your finger — the input opens on release, then the keyboard follows |
 | Synced devices disagree | Last write wins; make sure both run the latest version and the same sync code |

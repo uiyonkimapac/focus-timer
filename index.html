@@ -1744,6 +1744,10 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   <span class="undo-msg" id="undoMsg">Action undone</span>
   <button class="undo-btn" id="undoBtn" onclick="runUndo()">Undo</button>
 </div>
+<div class="undo-toast" id="storageToast">
+  <span class="undo-msg">⚠ Storage full — your changes weren't saved. Export a report.</span>
+  <button class="undo-btn" onclick="openSaveModal();document.getElementById('storageToast').classList.remove('open')">Save Report</button>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -1839,13 +1843,42 @@ let viewMode = 'list'; // 'list' | 'map' (Phase 2 Mountain Board)
 let undoEntry = null;
 
 // ── PERSISTENCE ──
+// Monotonic, collision-free id. Date.now()+Math.random() loses most of its
+// entropy once summed into a ~1.7e12 float (only ~4 fractional digits survive),
+// so same-tick bulk-imports/duplicates can collide. A strictly-increasing
+// integer is unique within a session AND across reloads (the clock only moves
+// forward), stays a Number (so every Number(id) coercion keeps working), and is
+// exact in JSON. (UUID strings would be even safer for cross-device sync but
+// would require auditing all id coercions — a larger change.)
+let _lastId = 0;
+function newId() {
+  const now = Date.now();
+  _lastId = now > _lastId ? now : _lastId + 1;
+  return _lastId;
+}
+
+let storageFullNotified = false;
+function notifyStorageFull() {
+  if (storageFullNotified) return; // once per failure streak — don't spam
+  storageFullNotified = true;
+  const t = document.getElementById('storageToast');
+  if (t) { t.classList.add('open'); setTimeout(() => t.classList.remove('open'), 10000); }
+  else { try { alert('Storage is full — export a report (Save Report) so you don\'t lose data.'); } catch(_) {} }
+}
+
 function saveAll() {
   try {
     localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
     localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
     localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
     localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
-  } catch(e) {}
+    storageFullNotified = false; // a clean write clears the warning state
+  } catch(e) {
+    // Quota exceeded (or private-mode write block): the user MUST know their
+    // edits didn't persist, instead of silently losing data.
+    console.warn('saveAll: localStorage write failed', e);
+    notifyStorageFull();
+  }
   // Only bump dataTimestamp + push when the synced content actually changed.
   // The 30s setInterval(saveAll) shouldn't masquerade as a real edit.
   const hash = snapshotHash();
@@ -2029,13 +2062,18 @@ function loadAll() {
     }
   } catch(e) {}
 
-  // ── Sanitize: remove duplicate task IDs, default categoryId for legacy tasks ──
+  // ── Sanitize: guard the shapes (a corrupt blob shouldn't crash the app),
+  // then drop duplicate/malformed task IDs and default categoryId for legacy tasks ──
+  if (!Array.isArray(tasks)) tasks = [];
+  if (!Array.isArray(history)) history = [];
+  if (!Array.isArray(categories)) categories = [];
   const seenIds = new Set();
   tasks = tasks.filter(t => {
+    if (!t || typeof t.name !== 'string' || !t.name || t.id == null) return false;
     const idStr = String(t.id);
     if (seenIds.has(idStr)) return false;
     seenIds.add(idStr);
-    return t && t.name && typeof t.name === 'string';
+    return true;
   });
   tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
 
@@ -2396,7 +2434,7 @@ function addTask(name, mins, source) {
     if (categories.find(c => c.id === picker.value)) categoryId = picker.value;
   }
   const t = {
-    id: Date.now()+Math.random(),
+    id: newId(),
     name: n, mins: m, secsRemaining: m*60,
     done: false, sessions: 0, secsSpent: 0,
     source: source||'manual', createdAt: Date.now(),
@@ -2463,12 +2501,13 @@ function toggleDone(id) {
     t.done = true;
     t.completedAt = Date.now();
     const hEntry = {
-      id: 'h_'+Date.now()+Math.random(),
+      id: 'h_'+newId(),
       name: t.name, mins: t.mins,
       secsSpent: t.secsSpent||0, sessions: t.sessions||0,
       source: t.source, completedAt: t.completedAt, createdAt: t.createdAt||0
     };
     history.unshift(hEntry);
+    t._histId = hEntry.id; // remember THIS row so un-completing removes only it
 
     // Load next task into timer (paused — user decides when to start)
     const next = tasks.find(x=>!x.done && x.id!==id);
@@ -2489,6 +2528,7 @@ function toggleDone(id) {
       t.done = false;
       t.completedAt = prevCompletedAt;
       history = history.filter(h => h.id !== restoreHid);
+      t._histId = null;
       activeId = prevActive || t.id;
       totalSec  = t.mins * 60;
       remaining = t.secsRemaining > 0 ? t.secsRemaining : t.mins * 60;
@@ -2503,7 +2543,17 @@ function toggleDone(id) {
     clearInterval(ticker); running = false;
     document.getElementById('btnPlay').innerHTML = '▶';
     t.done = false; t.completedAt = null;
-    history = history.filter(h => !(h.name === t.name));
+    // Remove ONLY this task's completion row — not every entry that happens to
+    // share the name (that silently wiped unrelated history + stats).
+    if (t._histId != null) {
+      history = history.filter(h => h.id !== t._histId);
+    } else {
+      // Legacy task completed before _histId existed: drop just the single
+      // most-recent matching entry (history is newest-first), never all of them.
+      const idx = history.findIndex(h => h.name === t.name);
+      if (idx !== -1) history.splice(idx, 1);
+    }
+    t._histId = null;
     activeId = t.id;
     totalSec  = t.mins * 60;
     remaining = t.secsRemaining > 0 ? t.secsRemaining : t.mins * 60;
@@ -3893,7 +3943,7 @@ function pasteFromClipboard() {
   const newIds = [];
   for (const src of mapClipboard) {
     const copy = JSON.parse(JSON.stringify(src));
-    copy.id = Date.now() + Math.random();
+    copy.id = newId();
     copy.isMIT = false; copy.done = false;
     copy.secsRemaining = (copy.mins || 0) * 60; copy.secsSpent = 0; copy.sessions = 0;
     copy.createdAt = Date.now();
@@ -3946,7 +3996,7 @@ function duplicateTask(id) {
   const src = tasks.find(t => t.id === id);
   if (!src) return;
   const copy = Object.assign({}, src);
-  copy.id = Date.now() + Math.random();
+  copy.id = newId();
   copy.isMIT = false;            // MIT is exclusive — don't clone it
   copy.done = false;
   copy.secsRemaining = copy.mins * 60;
@@ -4641,7 +4691,7 @@ function doImport() {
     if(!tasks.find(t=>t.name.toLowerCase()===line.toLowerCase())) {
       // build task object directly — NO addTask() to avoid multiple saves
       const t = {
-        id: Date.now()+Math.random(),
+        id: newId(),
         name: line,
         mins: importDefaultMin,
         secsRemaining: importDefaultMin*60,
