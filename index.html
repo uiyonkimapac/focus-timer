@@ -1468,6 +1468,50 @@ body.light .btn-mit.active { color: #fff; }
 }
 .undo-toast .undo-btn:hover { filter: brightness(1.12); }
 body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
+
+/* ── PHONE IN LANDSCAPE (short height) ──────────────────────────────────────
+   Holding the phone horizontally gives a wide-but-short screen. The stacked
+   portrait layout wastes it (the list/map ends up half off-screen), so pin a
+   compact two-pane layout to the viewport: timer column left (scrolls if tall),
+   List/Map fills the rest. In MAP view we drop the left panel entirely so the
+   Mountain Board goes full-screen — exactly what a small phone needs. Portrait
+   keeps the normal stacked layout. Placed last so its overrides win the cascade. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body { flex-direction: row; height: 100dvh; overflow: hidden; }
+
+  .left-panel {
+    width: 40%; max-width: 300px;
+    height: 100dvh; overflow-y: auto;
+    padding: 12px 14px;
+    border-right: 1px solid var(--border); border-bottom: none;
+  }
+  /* Compact the timer so the column fits a short screen without much scrolling. */
+  .ring-wrap { width: 150px; height: 150px; margin-bottom: 10px; }
+  .app-logo { margin-bottom: 10px; }
+  .mode-row { margin-bottom: 10px; }
+  .timer-section { margin-bottom: 10px; }
+  .motivate-text { display: none; }
+
+  .main-area { flex: 1; height: 100dvh; overflow: hidden; }
+  .tab-content, .tab-pane { min-height: 0; }
+  .task-scroll, .history-scroll { overflow-y: auto; min-height: 0; }
+  .panel-meta { display: none; }
+  .quick-times { display: none; }
+  .tasks-pane { padding-top: 12px; }
+  .map-wrap { flex: 1; height: auto; min-height: 0; }
+
+  /* Map view → full screen: drop the timer panel, the top tab bar, the title
+     and the bulky buttons/add-row. Keep just the List/Map toggle + Guides so
+     you can switch back (or rotate to portrait for the rest). */
+  body.map-mode .left-panel { display: none; }
+  body.map-mode .add-row { display: none; }
+  body.map-mode .tab-nav { display: none; }
+  body.map-mode .panel-title { display: none; }
+  body.map-mode .header-actions .btn-small:not(#btnGuides),
+  body.map-mode .header-actions .btn-import { display: none; }
+  body.map-mode .panel-header { margin-bottom: 0; }
+  body.map-mode .tasks-pane { padding: 6px 8px; }
+}
 </style>
 </head>
 <body>
