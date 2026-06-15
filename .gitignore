@@ -10,3 +10,7 @@ phase1-*.png
 redesign-*.png
 mobile-*.png
 m3-*.jpeg
+
+# Internal planning notes (kept local — not for the public repo)
+docs/COMMERCIALIZATION-ROADMAP.md
+docs/RECOMMENDATIONS.md

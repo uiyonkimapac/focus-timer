@@ -62,6 +62,7 @@ At the bottom of the left panel sits a two-line mantra (default: *"Now or Never!
 | **○ circle** | Complete the task | Moves to Completed with a timestamp |
 | **Task name** | Double-click to rename (or use ✎) | |
 | **Time badge** | Quick-set 15/25/30/45/60m | |
+| **↻ repeat** | Make the task recurring | Click to cycle **off → daily → weekdays → weekly** (weekly repeats on today's weekday). A small **↻ daily / weekdays / weekly · Mon** badge shows under the name. When you complete a recurring task it's logged to history as usual and comes back fresh on its next due day — a single task, no pile-up of missed days |
 | **🌙** | "Not today" — snooze until tomorrow | The task mists out but stays visible (object permanence!). Auto-returns at midnight. Three snoozes in a row → red **FACE IT!** badge |
 | **▶** | Select this task and start the timer | |
 | **✎ / ✕** | Rename / delete | Delete shows an **Undo** toast |
@@ -77,6 +78,7 @@ At the bottom of the left panel sits a two-line mantra (default: *"Now or Never!
 |---|---|
 | **≡ List / ⛰ Map** | Switch views (same tasks, two perspectives) |
 | **⊞ Guides** | (Map only) toggle the axis guides |
+| **⛶ Full map** | (Map only) hide the left panel (timer, motivation, stats) so the map fills the whole window. Click again to bring it back; switching to List restores it automatically. The setting is remembered |
 | **◉ Focus Mode** | Hide everything except the current task — tunnel vision on demand |
 | **✓ Clear Done** | Archive all completed tasks |
 | **🧠 Dump Tasks** | Bulk-add (see above) |

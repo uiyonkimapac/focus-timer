@@ -16,6 +16,7 @@ Most productivity apps are built for brains that already remember things. Focus 
 - **One Most Important Task.** Mark your MIT and it turns golden — on the list *and* as a snow-capped golden peak on the map. You always know what matters.
 - **"Not today" without guilt.** Snooze a task and it mists out instead of disappearing — object permanence for tasks. It returns tomorrow automatically. Snooze it three days running and it earns a red **FACE IT!** badge. The app keeps you honest.
 - **An 8-hour reality check.** Plan more than a workday and the map quietly tints the overflow. No nagging — just a signal.
+- **Routines that come back on their own.** Mark a task ↻ daily, weekdays, or weekly and it returns fresh on schedule after you finish it — one task, never a pile-up of missed days.
 
 ## Two views, one brain
 
