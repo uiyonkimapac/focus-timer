@@ -91,7 +91,8 @@ At the bottom of the left panel sits a two-line mantra (default: *"Now or Never!
 Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories are **ranges** with serif territory names. This is your *thinking* surface — nothing here schedules anything. The map **fills the available space edge to edge** (no wasted margins) and re-fits itself when you resize the window or rotate your phone.
 
 ### Reading the map
-- **Peak size** = allocated time. **Snow-capped golden peak** = your MIT. **Misted** = "not today". **Glowing** = the active task.
+- **Peak size** = allocated time. **Snow-capped golden peak** = your MIT. **Glowing** = the active task.
+- **"Not today" tasks don't appear here** — the map shows only what's in play for today. (They stay visible in the List view's *Not today* group.)
 - **X axis** = duration along the hour ruler (1h–8h ticks).
 - **Y axis** = priority (the center vertical axis — higher is more important).
 - **Red tint past 8h** = you've planned more than a workday. Just a signal.
@@ -169,6 +170,7 @@ Open **Sync** (top of the left panel) → enter the **same sync code** on each d
 | Symptom | Fix |
 |---|---|
 | Sounds don't play | Tap/press something first — browsers require one interaction before audio |
+| "Storage full" toast appears | Your device's local storage is full (usually very long history or large notes). Your latest change wasn't saved — tap **Save Report** to export, then **Clear Done** / archive old items to free space |
 | New version doesn't show up | The app updates on the next *online* refresh; close and reopen once |
 | Long-press shows no keyboard (iOS) | Release your finger — the input opens on release, then the keyboard follows |
 | Synced devices disagree | Last write wins; make sure both run the latest version and the same sync code |
