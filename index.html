@@ -46,11 +46,13 @@ body {
   font-family: 'DM Sans', sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* Desktop app-shell: pin to the viewport so neither column can push the page
+     taller than the window (which left dead space below the shorter column).
+     Each column scrolls internally instead. Mobile reverts to page scroll. */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   -webkit-text-size-adjust: 100%;
   padding-bottom: env(safe-area-inset-bottom); /* standalone PWA: clear the iOS home indicator */
 }
@@ -71,9 +73,11 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   padding: 28px 24px;
   border-right: 1px solid var(--border);
   background: var(--surface);
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: fit-content;
+  /* Fill the viewport and scroll internally if the timer column is taller than
+     the window — never grow the page (that created the dead space beside the map/list). */
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
 }
 .app-logo {
   display: flex;
@@ -1157,11 +1161,14 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
 
 /* ── MOBILE / NARROW ── */
 @media (max-width: 760px) {
-  body { flex-direction: column; overflow-y: auto; }
+  /* Mobile: stack columns and use page scroll (undo the desktop app-shell pin). */
+  body { flex-direction: column; height: auto; overflow: visible; overflow-x: hidden; }
 
   .left-panel {
     width: 100%;
     min-height: auto;
+    height: auto;
+    overflow: visible;
     padding: 14px 16px 18px;
     border-right: none;
     border-bottom: 1px solid var(--border);
