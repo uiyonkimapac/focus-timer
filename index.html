@@ -473,6 +473,9 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 /* In Map view the quick-time chips (they only seed the add-task duration) and
    the meta date line aren't needed — reclaim that vertical space for the map. */
 body.map-mode .quick-times { display: none; }
+/* Full map mode: drop the left panel (timer/motivation/etc) so the map owns the
+   whole window. Only ever active in Map view (toggled off when leaving it). */
+body.full-map .left-panel { display: none; }
 body.map-mode .tasks-pane { padding-bottom: 8px; }
 body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 #mapSvg { width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
@@ -1657,6 +1660,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
               <button class="seg-btn" id="segMap" onclick="setViewMode('map')" title="Map view">⛰ Map</button>
             </div>
             <button class="btn-small" id="btnGuides" onclick="toggleMapGuides()" title="Show/hide the time guides" style="display:none;">⊞ Guides</button>
+            <button class="btn-small" id="btnFullMap" onclick="toggleFullMap()" title="Full map — hide the side panel so the map fills the screen" style="display:none;">⛶ Full map</button>
             <button class="btn-small" id="btnFocus" onclick="toggleSingleFocus()" title="Show only the current task">◉ Focus Mode</button>
             <button class="btn-small" onclick="clearDone()">✓ Clear Done</button>
             <button class="btn-import" onclick="openImport()">
@@ -1836,6 +1840,7 @@ let singleFocus = false;
 let notTodayCollapsed = true;
 let doneCollapsed = true;
 let viewMode = 'list'; // 'list' | 'map' (Phase 2 Mountain Board)
+let fullMap = false;   // hide the left panel so the map fills the window (map view only)
 
 // ── PHASE 1: UNDO ──
 // Stack of pending undo actions. Only the most recent is exposed via the toast,
@@ -2953,17 +2958,23 @@ function renderTasks() {
   const mapWrap = document.getElementById('mapWrap');
   const taskListEl = document.getElementById('taskList');
   const guidesBtn = document.getElementById('btnGuides');
+  const fullMapBtn = document.getElementById('btnFullMap');
   document.body.classList.toggle('map-mode', viewMode === 'map');
   if (viewMode === 'map') {
     if (taskListEl) taskListEl.style.display = 'none';
     if (mapWrap) mapWrap.style.display = 'block';
     if (guidesBtn) guidesBtn.style.display = '';
+    if (fullMapBtn) { fullMapBtn.style.display = ''; fullMapBtn.classList.toggle('active-mode', fullMap); }
+    // Apply BEFORE renderMap so fitMapCanvas measures the full (panel-hidden) width.
+    document.body.classList.toggle('full-map', fullMap);
     renderMap();
     return;
   }
   if (mapWrap) mapWrap.style.display = 'none';
   if (taskListEl) taskListEl.style.display = '';
   if (guidesBtn) guidesBtn.style.display = 'none';
+  if (fullMapBtn) fullMapBtn.style.display = 'none';
+  document.body.classList.remove('full-map'); // never hide the timer in List view
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
     list.innerHTML = `<div class="empty-msg"><div class="big">🧠</div>Add a task above or Dump Tasks to clear your head<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
@@ -4109,6 +4120,14 @@ function toggleMapGuides() {
   renderMap();
 }
 
+function toggleFullMap() {
+  fullMap = !fullMap;
+  try { localStorage.setItem('focustimer_fullMap', fullMap ? '1' : '0'); } catch(e) {}
+  // renderTasks() applies the body class, updates the button, and re-fits the
+  // map to the new width (panel shown/hidden). Single source of truth.
+  renderTasks();
+}
+
 function toggleNotTodayCollapsed() {
   notTodayCollapsed = !notTodayCollapsed;
   try { localStorage.setItem('focustimer_nottoday_collapsed', notTodayCollapsed ? '1' : '0'); } catch(e) {}
@@ -4943,6 +4962,7 @@ loadAll();
   }
   const mg = localStorage.getItem('focustimer_mapGuides');
   if (mg === '0') mapGuides = false;
+  if (localStorage.getItem('focustimer_fullMap') === '1') fullMap = true;
   const gBtn = document.getElementById('btnGuides');
   if (gBtn && mapGuides) gBtn.classList.add('active-mode');
   // Restore the user's custom motivation text (falls back to the default markup).

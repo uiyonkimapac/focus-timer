@@ -77,6 +77,7 @@ At the bottom of the left panel sits a two-line mantra (default: *"Now or Never!
 |---|---|
 | **≡ List / ⛰ Map** | Switch views (same tasks, two perspectives) |
 | **⊞ Guides** | (Map only) toggle the axis guides |
+| **⛶ Full map** | (Map only) hide the left panel (timer, motivation, stats) so the map fills the whole window. Click again to bring it back; switching to List restores it automatically. The setting is remembered |
 | **◉ Focus Mode** | Hide everything except the current task — tunnel vision on demand |
 | **✓ Clear Done** | Archive all completed tasks |
 | **🧠 Dump Tasks** | Bulk-add (see above) |
