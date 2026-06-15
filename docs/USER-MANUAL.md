@@ -1,6 +1,6 @@
 # Focus Timer — User Manual
 
-*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-10.*
+*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-15.*
 
 Focus Timer is an ADHD-first focus app: a Pomodoro timer + task list for **execution**, and a spatial "Mountain Board" map for **planning**. This manual covers everything, desktop and mobile.
 
@@ -16,7 +16,7 @@ Focus Timer is an ADHD-first focus app: a Pomodoro timer + task list for **execu
 - **Offline:** after the first visit, the entire app — including sounds — works with no connection.
 
 ### The screen
-- **Left panel** (top on phones): the timer — mode buttons, ring, controls, per-task notes, today's stats.
+- **Left panel** (top on phones): the timer — mode buttons, ring, controls, per-task notes, today's stats, and your editable motivational banner at the bottom.
 - **Main area:** the **Tasks** tab (List or Map view) and the **Completed** tab.
 
 ---
@@ -34,6 +34,17 @@ Focus Timer is an ADHD-first focus app: a Pomodoro timer + task list for **execu
 The selected task's remaining time drives the countdown; finishing a session logs focused minutes to your stats and plays a completion sound. A thin progress bar runs along the very top of the page.
 
 **Notes:** the notepad under the timer belongs to the *selected task* — links, sub-steps, thoughts. It saves as you type and follows the task.
+
+### Your motivational banner
+At the bottom of the left panel sits a two-line mantra (default: *"Now or Never! / Right Now, Right Here"*). Make it yours:
+
+- **Edit the words:** click either line and type. **Enter** (or click away) saves; **Esc** also saves and exits. Clear a line and its default shows faintly as a placeholder. Pasted text is flattened to plain text so it can't break the styling.
+- **Restyle it:** hover the banner and click **Aa · style**. A small panel lets you set, **per line**:
+  - **Font** — 6 faces (script, handwritten, two serifs, a bold display, clean sans).
+  - **Size** — a slider, 14–72px (recommended 28–48px for the headline, 18–30px for the subline).
+  - **Color** — 8 swatches (Accent, Theme, Gold, Teal, Sky, Violet, White, Black). *Theme* adapts to dark/light automatically.
+
+  Changes apply instantly and are saved to this device. *(The banner is desktop-only; it's hidden on narrow phone screens to save space.)*
 
 ---
 
@@ -77,7 +88,7 @@ The selected task's remaining time drives the countdown; finishing a session log
 
 ## 4. The Mountain Board (Map view `⛰`)
 
-Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories are **ranges** with serif territory names. This is your *thinking* surface — nothing here schedules anything.
+Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories are **ranges** with serif territory names. This is your *thinking* surface — nothing here schedules anything. The map **fills the available space edge to edge** (no wasted margins) and re-fits itself when you resize the window or rotate your phone.
 
 ### Reading the map
 - **Peak size** = allocated time. **Snow-capped golden peak** = your MIT. **Misted** = "not today". **Glowing** = the active task.
@@ -92,7 +103,7 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 | Select a task | Click a peak |
 | Start/pause · complete | On the active peak: ▶/⏸ in the body · ✓ circle on the summit |
 | Move a peak | Drag it (position is remembered; time is never changed by dragging) |
-| Change category | Drag a peak until it **touches another range's peak or ridge**; drop on open ground to leave a category |
+| Change category | Drag a peak **close to a range's peak or ridge** — above, below, or beside it; stacking near a member is enough to join. Drop on open ground (away from any range) to leave a category |
 | Group two tasks | Drop one peak **onto** another (it glows green when they'd merge) |
 | Delete / duplicate | Drag to the **🗑 trash** / **⧉ copy** zones that appear at the bottom |
 | Add a task | **Double-click** empty ground |
@@ -101,7 +112,7 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 | Multi-select | Drag a box on empty ground · **Shift/⌘-click** to toggle peaks · totals appear in the HUD |
 | Copy / paste / delete selection | **⌘/Ctrl+C**, **⌘/Ctrl+V**, **Delete** · **Esc** clears/cancels |
 | Pan | **Ctrl/⌘ + drag** (cursor becomes a hand) |
-| Zoom | Mouse wheel, trackpad pinch, or the **+/−** buttons (100% = the whole world, up to 400%) |
+| Zoom | Mouse wheel, trackpad pinch, or the **+/−** buttons (100% = the whole map filling the frame, up to 400%) |
 
 ### Touch controls (phone/tablet)
 | Action | How |
@@ -134,8 +145,8 @@ Open **Sync** (top of the left panel) → enter the **same sync code** on each d
 
 | Key | Where | Action |
 |---|---|---|
-| **Space** | Anywhere (outside inputs) | Start / pause the timer |
-| **R** | Anywhere | Restart the session |
+| **Space** | Anywhere (outside text fields) | Start / pause the timer |
+| **R** | Anywhere (outside text fields) | Restart the session |
 | **⌘/Ctrl + C / V** | Map | Copy / paste selected peak(s) |
 | **Delete / Backspace** | Map | Delete selection (or the selected peak) |
 | **Esc** | Map | Cancel a drag · clear the selection |
