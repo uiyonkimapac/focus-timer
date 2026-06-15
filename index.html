@@ -1974,7 +1974,7 @@ function applyRemote(d) {
       localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
       localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
       localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
-    } catch(e) {}
+    } catch(e) { console.warn('sync pull: local persist failed', e); notifyStorageFull(); }
     renderTasks(); renderHistory(); renderActivePill(); updateStats(); renderDots();
   } finally {
     syncSuppress = false;
@@ -2101,6 +2101,14 @@ function loadAll() {
     seenHist.add(h.id);
     return h && h.name && h.completedAt;
   });
+
+  // Seed newId() past every existing id so it can't collide even if the system
+  // clock moved backward since those ids were minted (also handles legacy float
+  // ids — Math.ceil keeps the counter a clean integer above them).
+  let maxId = 0;
+  for (const t of tasks) if (typeof t.id === 'number' && isFinite(t.id) && t.id > maxId) maxId = t.id;
+  for (const h of history) { if (typeof h.id === 'string' && h.id.startsWith('h_')) { const n = parseFloat(h.id.slice(2)); if (isFinite(n) && n > maxId) maxId = n; } }
+  _lastId = Math.max(_lastId, Math.ceil(maxId));
 
   // Seed the hash so the very first saveAll right below doesn't bump
   // dataTimestamp just because lastPushedDataHash was empty.
@@ -4967,7 +4975,7 @@ setInterval(() => {
   [['motivate1','focustimer_motivate1'], ['motivate2','focustimer_motivate2']].forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    const save = () => localStorage.setItem(key, el.textContent.trim());
+    const save = () => { try { localStorage.setItem(key, el.textContent.trim()); } catch(_) {} };
     el.addEventListener('input', save);
     el.addEventListener('blur', save);
     // Enter commits (no multi-line / no <div> soup); Esc drops focus.
@@ -5023,7 +5031,7 @@ function applyMotiveStyleToEl(line) {
   if (line === 1) el.style.filter = `drop-shadow(0 0 ${Math.round(s.size * 0.3)}px ${s.color})`;
 }
 function saveMotiveStyle() {
-  localStorage.setItem('focustimer_motiveStyle', JSON.stringify(motiveStyle));
+  try { localStorage.setItem('focustimer_motiveStyle', JSON.stringify(motiveStyle)); } catch(_) {}
 }
 function applyMotivateStyle(prop, val) {
   motiveStyle[motiveTarget][prop] = prop === 'size' ? +val : val;
