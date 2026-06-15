@@ -12,32 +12,36 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Baguet+Script&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Caveat:wght@500;700&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Bebas+Neue&display=swap" rel="stylesheet">
 <style>
+/* Default = DARK theme ("aged map by lamplight"). Light theme overrides live in
+   body.light below. The whole UI is driven by these semantic tokens so the
+   vintage-cartographic look stays consistent with the Mountain Board. */
 :root {
-  --bg: #0f1117;
-  --surface: #1c2029;
-  --surface2: #262b36;
-  --surface3: #323845;
-  --border: rgba(255,255,255,0.10);
-  --border2: rgba(255,255,255,0.16);
-  --text: #e4e6eb;
-  --text2: #a4adbe;
-  --text3: #7a8597;
-  --accent: #c0392b;
-  --accent-soft: rgba(192,57,43,0.20);
-  --accent-glow: rgba(192,57,43,0.28);
-  --green: #2980b9;
-  --green-soft: rgba(41,128,185,0.12);
-  --amber: #e67e22;
-  --amber-soft: rgba(230,126,34,0.12);
-  --red: #e74c3c;
-  --red-soft: rgba(231,76,60,0.1);
-  --blue: #2980b9;
-  --blue-soft: rgba(41,128,185,0.20);
+  --bg: #1e1a17;            /* deep warm brown-black */
+  --surface: #2a2420;       /* panels — lighter than bg */
+  --surface2: #322b26;
+  --surface3: #3d352e;
+  --border: #3e362f;
+  --border2: #4c4239;
+  --text: #ede4d6;          /* warm off-white */
+  --text2: #a89e8e;         /* muted */
+  --text3: #837a6c;
+  --accent: #c66a52;        /* lifted terracotta — pops on dark */
+  --accent-soft: rgba(198,106,82,0.20);
+  --accent-glow: rgba(198,106,82,0.30);
+  --green: #84977a;         /* sage (done / completed) — lifted for dark */
+  --green-soft: rgba(132,151,122,0.16);
+  --amber: #d2a24a;         /* ochre */
+  --amber-soft: rgba(210,162,74,0.14);
+  --red: #c0563f;           /* muted terracotta-red for warnings */
+  --red-soft: rgba(192,86,63,0.12);
+  --blue: #6a7e96;          /* dusty slate (break / secondary) */
+  --blue-soft: rgba(106,126,150,0.16);
   --radius: 14px;
   --radius-sm: 8px;
-  /* Mountain Board (Map View) — etched-cartography palette */
-  --map-bg: #0e1411;
-  --map-world-bg: #080a09;
+  /* Mountain Board — etched cartography. Dark = muted dark parchment so peaks
+     sit on warm ground (not bright cream against the dark UI). */
+  --map-bg: #2e2823;
+  --map-world-bg: #211c18;
   --map-ink: #cfc9b6;                    /* parchment ink — all line-art strokes */
   --map-peak-shade: rgba(0,0,0,0.32);    /* west-flank relief shading */
 }
@@ -87,7 +91,7 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
 }
 .logo-icon {
   width: 30px; height: 30px;
-  background: linear-gradient(135deg, #c0392b 0%, #922b21 100%);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 65%, #000));
   border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   font-size: 14px;
@@ -381,6 +385,21 @@ button, .task-inp, .time-inp, .task-memo, .btn-play, .btn-ctrl,
   font-weight: 500; color: var(--text); line-height: 1; margin-bottom: 3px;
 }
 .stat-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+
+/* ── Vintage headings ── elegant serif for short labels/headings, matching the
+   Mountain Board's range type (Cormorant). Body + data text stay sans-serif for
+   legibility (visibility-first). */
+.panel-title, .time-label, .task-memo-label, .stat-lbl, .cat-name, .history-title {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+}
+.panel-title { font-size: 13px; }
+.time-label  { font-size: 12px; }
+.task-memo-label { font-size: 12px; }
+.stat-lbl    { font-size: 11px; letter-spacing: 1.2px; }
+.cat-name    { font-size: 15px; letter-spacing: 0.4px; }
+/* The active-task name beside NOTES is content, not a label — keep it sans. */
+.task-memo-label .memo-name { font-family: 'DM Sans', sans-serif; font-weight: 400; }
 
 /* ── MAIN AREA (tabs) ── */
 .main-area {
@@ -934,16 +953,17 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 }
 
 /* top progress bar */
-.top-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--surface2); z-index: 200; }
-.top-progress-fill { height: 100%; background: var(--accent); transition: width 1s linear; box-shadow: 0 0 8px var(--accent); }
+.top-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: transparent; z-index: 200; }
+/* Quiet hairline (no glow) — calm timer progress, not a bright strip. */
+.top-progress-fill { height: 100%; background: var(--accent); opacity: 0.55; transition: width 1s linear; }
 
 /* break mode — blue tone */
 /* break ring handled by renderClock() */
-body.break .btn-play { background: #2980b9; box-shadow: 0 0 20px rgba(41,128,185,0.35); }
-body.break .active-dot { background: #2980b9; }
-body.break .active-pill { background: rgba(41,128,185,0.20); border-color: rgba(41,128,185,0.40); }
-body.break .active-task-name, body.break .active-task-time { color: #5ba3d0; }
-body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41,128,185,0.5); }
+body.break .btn-play { background: var(--blue); box-shadow: 0 0 20px var(--blue-soft); }
+body.break .active-dot { background: var(--blue); }
+body.break .active-pill { background: var(--blue-soft); border-color: var(--blue); }
+body.break .active-task-name, body.break .active-task-time { color: var(--blue); }
+body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var(--blue-soft); }
 
 /* reset data button */
 .btn-reset-data {
@@ -1326,20 +1346,27 @@ body.break .top-progress-fill { background: #2980b9; box-shadow: 0 0 8px rgba(41
 
 /* ── LIGHT MODE ── */
 body.light {
-  --bg: #eef0f5;
-  --surface: #ffffff;
-  --surface2: #f2f4f8;
-  --surface3: #e5e8ef;
-  --border: rgba(0,0,0,0.08);
-  --border2: rgba(0,0,0,0.14);
-  --text: #1a1d2e;
-  --text2: #4a5268;
-  --text3: #8a94a8;
-  --accent-soft: rgba(192,57,43,0.10);
-  --accent-glow: rgba(192,57,43,0.20);
-  --green-soft: rgba(41,128,185,0.08);
-  --blue-soft: rgba(41,128,185,0.10);
-  --red-soft: rgba(231,76,60,0.07);
+  /* Vintage paper */
+  --bg: #ede6d3;            /* warm cream */
+  --surface: #f2ecdd;
+  --surface2: #e7dfcb;
+  --surface3: #dbd1ba;
+  --border: #d8cdb5;        /* soft tan — no hard grey lines */
+  --border2: #c8bb9e;
+  --text: #3a352e;          /* warm charcoal */
+  --text2: #6b6358;         /* muted, darkened for contrast */
+  --text3: #8a8170;
+  --accent: #b5543f;        /* muted terracotta */
+  --accent-soft: rgba(181,84,63,0.14);
+  --accent-glow: rgba(181,84,63,0.20);
+  --green: #6e8062;         /* sage */
+  --green-soft: rgba(110,128,98,0.14);
+  --amber: #c0922f;         /* ochre */
+  --amber-soft: rgba(192,146,47,0.14);
+  --red: #b5543f;
+  --red-soft: rgba(181,84,63,0.10);
+  --blue: #6e7d92;          /* dusty slate */
+  --blue-soft: rgba(110,125,146,0.12);
 }
 body.light .task-memo {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
@@ -1832,18 +1859,20 @@ const STORAGE_STATS      = 'focustimer_stats';
 const STORAGE_SYNCCODE   = 'focustimer_synccode';
 const STORAGE_CATEGORIES = 'focustimer_categories';
 
-// 10-color palette for categories. Tuned for both dark and light themes.
+// Vintage-cartographic category palette — muted mid-tones that read on both the
+// cream (light) and dark-parchment (dark) map. Existing categories keep their
+// stored colour; this only sets new ones + the picker.
 const CAT_COLORS = [
-  '#e74c3c', // red
-  '#e67e22', // orange
-  '#f1c40f', // yellow
-  '#27ae60', // green
-  '#16a085', // teal
-  '#2980b9', // blue
-  '#5b6fdb', // indigo
-  '#8e44ad', // purple
-  '#e84393', // pink
-  '#7f8c8d', // slate
+  '#6e8062', // sage
+  '#c0922f', // ochre
+  '#c06b80', // dusty rose
+  '#b5543f', // terracotta
+  '#c77a98', // pink
+  '#5f7e78', // dusty teal
+  '#6a6e92', // muted indigo
+  '#875a74', // plum
+  '#8a7a4a', // olive
+  '#9c6b4f', // clay
 ];
 
 // ── SUPABASE SYNC ──
@@ -2332,9 +2361,14 @@ function renderClock() {
   const ARC_R = 86;
   const pct = totalSec > 1 ? remaining / totalSec : 0;
   const isBreak = document.body.classList.contains('break');
-  const strokeColor = isBreak ? '#2980b9' : '#c0392b';
-  const glowColor   = isBreak ? 'rgba(41,128,185,0.45)' : 'rgba(192,57,43,0.4)';
-  const tickActive  = isBreak ? '#2980b9' : '#c0392b';
+  // Read the live theme tokens so the ring follows light/dark + the vintage accent.
+  const css = getComputedStyle(document.body);
+  const accent = css.getPropertyValue('--accent').trim() || '#c66a52';
+  const blue   = css.getPropertyValue('--blue').trim() || '#6a7e96';
+  const strokeColor = isBreak ? blue : accent;
+  const glowColor   = isBreak ? (css.getPropertyValue('--blue-soft').trim() || 'rgba(106,126,150,0.3)')
+                              : (css.getPropertyValue('--accent-glow').trim() || 'rgba(198,106,82,0.3)');
+  const tickActive  = isBreak ? blue : accent;
   const tickDim     = document.body.classList.contains('light') ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.08)';
 
   const TOTAL_TICKS = 60;
@@ -4663,7 +4697,7 @@ function doSave() {
 <title>Focus Report — ${nowStr}</title>
 <style>
 body{font-family:'Segoe UI',sans-serif;background:#f7f8fa;color:#1a1a2e;margin:0;padding:0;}
-.hdr{background:linear-gradient(135deg,#c0392b,#922b21);color:#fff;padding:36px 48px 28px;}
+.hdr{background:linear-gradient(135deg,#b5543f,#8e3f2e);color:#fff;padding:36px 48px 28px;}
 .hdr h1{font-size:26px;font-weight:700;margin:0 0 4px;letter-spacing:-0.5px;}
 .hdr p{font-size:13px;opacity:0.75;margin:0;}
 .body{max-width:860px;margin:0 auto;padding:36px 24px 60px;}
@@ -4671,7 +4705,7 @@ body{font-family:'Segoe UI',sans-serif;background:#f7f8fa;color:#1a1a2e;margin:0
 .sec-title{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#8899aa;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #e2e6ea;}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
 .sbox{background:#fff;border:1px solid #e2e6ea;border-radius:10px;padding:16px;text-align:center;}
-.sbox .val{font-size:28px;font-weight:700;color:#c0392b;line-height:1;margin-bottom:4px;}
+.sbox .val{font-size:28px;font-weight:700;color:#b5543f;line-height:1;margin-bottom:4px;}
 .sbox .lbl{font-size:11px;color:#8899aa;text-transform:uppercase;letter-spacing:0.8px;}
 table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
 th{background:#f0f2f5;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8899aa;padding:10px 14px;text-align:left;}
@@ -4679,7 +4713,7 @@ td{font-size:13px;padding:11px 14px;color:#2c3e50;border-top:1px solid #f0f2f5;v
 tr:hover td{background:#fafbfc;}
 .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;}
 .bg{background:#eaf3fd;color:#2980b9;}.bm{background:#f0f2f5;color:#8899aa;}
-.ba{background:#fdf0ef;color:#c0392b;}
+.ba{background:#fdf0ef;color:#b5543f;}
 .mono{font-family:'Courier New',monospace;font-size:12px;color:#5d6d7e;white-space:nowrap;}
 .footer{text-align:center;font-size:11px;color:#aab;margin-top:48px;}
 </style></head><body>
