@@ -1391,35 +1391,33 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 /* Hidden by default — only the active MIT card shows it always; other
    cards reveal it on hover so the user can still promote them. */
 .btn-mit {
-  background: rgba(241,196,15,0.08);
-  border: 1.5px solid rgba(241,196,15,0.25);
+  background: var(--amber-soft);
+  border: 1.5px solid color-mix(in srgb, var(--amber) 50%, transparent);
   border-radius: 5px;
   cursor: pointer; flex-shrink: 0;
   font-family: 'DM Sans', sans-serif;
   font-size: 10px; font-weight: 700; letter-spacing: 1px;
   padding: 3px 6px; line-height: 1;
-  color: rgba(241,196,15,0.55); opacity: 0;
+  color: var(--amber); opacity: 0;          /* full-strength ochre — readable on cream */
   transition: all 0.15s;
   display: flex; align-items: center;
 }
-.task-card:hover .btn-mit { opacity: 0.7; }
+.task-card:hover .btn-mit { opacity: 0.9; }
 .btn-mit:hover { transform: scale(1.08); opacity: 1; }
 .btn-mit.active {
   opacity: 1;
-  background: #f1c40f; color: #2a1f00;
-  border-color: #f1c40f;
-  box-shadow: 0 0 12px rgba(241,196,15,0.55);
+  background: var(--amber); color: #2a1f00;  /* dark text on the ochre pill */
+  border-color: var(--amber);
+  box-shadow: 0 0 10px var(--amber-soft);
 }
 .task-card.is-mit {
-  border-color: #f1c40f;
+  border-color: var(--amber);
   border-width: 2px;
-  background: rgba(241,196,15,0.07);
+  background: var(--amber-soft);
 }
-.task-card.is-mit::before { background: #f1c40f; width: 6px; }
-.task-card.is-mit .check-wrap { border-color: rgba(241,196,15,0.7); border-width: 2px; }
+.task-card.is-mit::before { background: var(--amber); width: 6px; }
+.task-card.is-mit .check-wrap { border-color: var(--amber); border-width: 2px; }
 .task-card.is-mit .task-name { font-weight: 700; }
-body.light .task-card.is-mit { background: rgba(241,196,15,0.12); }
-body.light .btn-mit.active { color: #fff; }
 
 /* ── PHASE 1: Not Today ── */
 .btn-not-today {
@@ -1867,7 +1865,7 @@ const CAT_COLORS = [
   '#c0922f', // ochre
   '#c06b80', // dusty rose
   '#b5543f', // terracotta
-  '#c77a98', // pink
+  '#9a7aa8', // lilac (was a 2nd near-identical pink)
   '#5f7e78', // dusty teal
   '#6a6e92', // muted indigo
   '#875a74', // plum
