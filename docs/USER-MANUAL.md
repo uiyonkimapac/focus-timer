@@ -1,8 +1,8 @@
-# Focus Timer — User Manual
+# Now This — User Manual
 
-*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-15.*
+*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-18.*
 
-Focus Timer is an ADHD-first focus app: a Pomodoro timer + task list for **execution**, and a spatial "Mountain Board" map for **planning**. This manual covers everything, desktop and mobile.
+**Now This** is an ADHD-first focus app: a Pomodoro timer + task list for **execution**, and a spatial "Mountain Board" map for **planning**. The name is the whole philosophy — *now this, this one thing*. This manual covers everything, desktop and mobile.
 
 ---
 
@@ -11,13 +11,13 @@ Focus Timer is an ADHD-first focus app: a Pomodoro timer + task list for **execu
 ### Open or install
 - **Browser:** just open the link. No account, no signup. Data is stored on your device (localStorage).
 - **Install as an app (recommended on phones):**
-  - **iPhone/iPad:** Safari → Share → **Add to Home Screen**. Launches fullscreen with the mountain icon.
+  - **iPhone/iPad:** Safari → Share → **Add to Home Screen**. Launches fullscreen with the etched-clock icon.
   - **Android:** Chrome → menu ⋮ → **Add to Home screen** (or the install prompt).
-- **Offline:** after the first visit, the entire app — including sounds — works with no connection.
+- **Offline:** after the first visit, the app — including sounds — works with no connection. (The font and the optional sync library load from the network the first time only.)
 
 ### The screen
-- **Left panel** (top on phones): the timer — mode buttons, ring, controls, per-task notes, today's stats, and your editable motivational banner at the bottom.
-- **Main area:** the **Tasks** tab (List or Map view) and the **Completed** tab.
+- **Left panel** (top on phones): the **logo + theme toggle + sync badge**, the timer (mode buttons, ring, controls), the selected task's notes, today's two stat cards, and — on desktop — your editable **motivation banner**.
+- **Main area:** the **Tasks** tab (List or Map view) and the **Completed** tab, with **Reset Data** and **Save Report** in the top-right.
 
 ---
 
@@ -25,44 +25,41 @@ Focus Timer is an ADHD-first focus app: a Pomodoro timer + task list for **execu
 
 | Control | What it does |
 |---|---|
-| **Focus / Short Break / Long Break** | 25 / 5 / 15 minute modes |
+| **Focus / Short Break / Long Break** | 25 / 5 / 15 minute modes. In a break, the active break button takes on the blue break colour. |
 | **▶ big button** | Start / pause (keyboard: **Space**) |
 | **↺** | Restart the current session (keyboard: **R**) |
 | **⏭** | Skip to the end of the session |
 | **Session dots** | Your place in the classic 4-pomodoro cycle |
 
-The selected task's remaining time drives the countdown; finishing a session logs focused minutes to your stats and plays a completion sound. A thin progress bar runs along the very top of the page.
+The selected task's remaining time drives the countdown; finishing a focus session credits focused minutes (these feed your Save Report and sync) and plays a completion sound. A thin progress bar runs along the very top of the page.
 
-**Notes:** the notepad under the timer belongs to the *selected task* — links, sub-steps, thoughts. It saves as you type and follows the task.
+**The active pill** under the ring always shows which task the timer is counting down — or "No task selected".
 
-### Your motivational banner
-At the bottom of the left panel sits a two-line mantra (default: *"Now or Never! / Right Now, Right Here"*). Make it yours:
+**Notes:** the notepad under the timer belongs to the *selected task* — links, sub-steps, thoughts. It saves as you type and follows the task (it's disabled until you select one).
 
-- **Edit the words:** click either line and type. **Enter** (or click away) saves; **Esc** also saves and exits. Clear a line and its default shows faintly as a placeholder. Pasted text is flattened to plain text so it can't break the styling.
-- **Restyle it:** hover the banner and click **Aa · style**. A small panel lets you set, **per line**:
-  - **Font** — 6 faces (script, handwritten, two serifs, a bold display, clean sans).
-  - **Size** — a slider, 14–72px (recommended 28–48px for the headline, 18–30px for the subline).
-  - **Color** — 8 swatches (Accent, Theme, Gold, Teal, Sky, Violet, White, Black). *Theme* adapts to dark/light automatically.
+**Today's stats** — two cards under the timer:
+- **Tasks Left** — how many active (not-done) tasks remain.
+- **Done Today** — tasks you completed today.
 
-  Changes apply instantly and are saved to this device. *(The banner is desktop-only; it's hidden on narrow phone screens to save space.)*
+### Motivation banner (desktop only)
+Below the stats, two lines of editable motivation — defaults **"Now or Never!"** / **"Right Now, Right Here"**. Click either line to rewrite it. The **Aa · style** button opens a customizer to set the **font, size (14–72px), and colour** per line. It's hidden on phones to keep the mobile timer compact.
 
 ---
 
 ## 3. Tasks (List view `≡`)
 
 ### Adding tasks
-- Type a name, pick minutes (the **1m–1h chips** or the minutes box), optionally a category → **+ Add**.
-- **🧠 Dump Tasks** — the brain-dump door. Paste or type *many lines at once*; each line becomes a task with the default time you pick. Get it out of your head first, organize later.
+- Type a name, set the time in the **time box** (type like `25m`, or use the **1m–1h quick chips**), optionally pick a category → **+ Add**.
+- **🧠 Dump Tasks** — the brain-dump door. Paste or type *many lines at once* (one task per line; blank lines skipped, duplicates ignored). Works great for pasting from Google Tasks or notes. Get it out of your head first, organize later.
 
 ### Anatomy of a task card
 | Element | Tap/click | Notes |
 |---|---|---|
 | **⋮⋮ handle** | Drag to reorder | On touch: press the handle, or **long-press anywhere on the card** (~0.4s), then drag |
-| **MIT** | Toggle Most Important Task | The card turns golden; only one star matters — keep it honest |
+| **MIT** | Toggle Most Important Task | The card gains an **amber/gold** accent and bold name; only one star matters — keep it honest |
 | **○ circle** | Complete the task | Moves to Completed with a timestamp |
 | **Task name** | Double-click to rename (or use ✎) | |
 | **Time badge** | Quick-set 15/25/30/45/60m | |
-| **↻ repeat** | Make the task recurring | Click to cycle **off → daily → weekdays → weekly** (weekly repeats on today's weekday). A small **↻ daily / weekdays / weekly · Mon** badge shows under the name. When you complete a recurring task it's logged to history as usual and comes back fresh on its next due day — a single task, no pile-up of missed days |
 | **🌙** | "Not today" — snooze until tomorrow | The task mists out but stays visible (object permanence!). Auto-returns at midnight. Three snoozes in a row → red **FACE IT!** badge |
 | **▶** | Select this task and start the timer | |
 | **✎ / ✕** | Rename / delete | Delete shows an **Undo** toast |
@@ -78,27 +75,31 @@ At the bottom of the left panel sits a two-line mantra (default: *"Now or Never!
 |---|---|
 | **≡ List / ⛰ Map** | Switch views (same tasks, two perspectives) |
 | **⊞ Guides** | (Map only) toggle the axis guides |
-| **⛶ Full map** | (Map only) hide the left panel (timer, motivation, stats) so the map fills the whole window. Click again to bring it back; switching to List restores it automatically. The setting is remembered |
+| **⛶ Full map** | (Map only) hide the left panel so the map fills the whole window |
 | **◉ Focus Mode** | Hide everything except the current task — tunnel vision on demand |
 | **✓ Clear Done** | Archive all completed tasks |
 | **🧠 Dump Tasks** | Bulk-add (see above) |
-| **💾 Save Report** | Download a formatted HTML report — choose Active / Completed / Stats, pick a filename |
-| **Reset Data** | Wipe everything (asks first — Save Report beforehand if in doubt) |
-| **☽ / ☀** | Dark (ink) / light (parchment) theme |
+
+In the tab bar (top-right of the main area):
+| Button | What it does |
+|---|---|
+| **Save Report** | Download a formatted **HTML** report — choose Active / Completed / Stats and a filename |
+| **Reset Data** | Wipe all tasks and history (asks first — Save Report beforehand if in doubt) |
+| **☽ / ☀** (in the logo row) | Dark (ink) / light (parchment) theme |
 
 ---
 
 ## 4. The Mountain Board (Map view `⛰`)
 
-Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories are **ranges** with serif territory names. This is your *thinking* surface — nothing here schedules anything. The map **fills the available space edge to edge** (no wasted margins) and re-fits itself when you resize the window or rotate your phone.
+Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories are **ranges** with serif territory names, drawn as stacked peaks joined by proximity. The map fills the area edge-to-edge. This is your *thinking* surface — nothing here schedules anything.
 
 ### Reading the map
-- **Peak size** = allocated time. **Snow-capped golden peak** = your MIT. **Glowing** = the active task.
-- **"Not today" tasks don't appear here** — the map shows only what's in play for today. (They stay visible in the List view's *Not today* group.)
+- **Peak size** = allocated time. **Snow-capped golden peak** = your MIT. **Misted** = "not today". **Glowing** = the active task.
 - **X axis** = duration along the hour ruler (1h–8h ticks).
 - **Y axis** = priority (the center vertical axis — higher is more important).
 - **Red tint past 8h** = you've planned more than a workday. Just a signal.
 - Under each peak: its name and time. Under each ridge: the category name.
+- **⛶ Full map** hides the left panel for a bigger canvas; **⊞ Guides** toggles the axis lines.
 
 ### Desktop controls
 | Action | How |
@@ -106,7 +107,7 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 | Select a task | Click a peak |
 | Start/pause · complete | On the active peak: ▶/⏸ in the body · ✓ circle on the summit |
 | Move a peak | Drag it (position is remembered; time is never changed by dragging) |
-| Change category | Drag a peak **close to a range's peak or ridge** — above, below, or beside it; stacking near a member is enough to join. Drop on open ground (away from any range) to leave a category |
+| Change category | Drag a peak until it **touches another range's peak or ridge**; drop on open ground to leave a category |
 | Group two tasks | Drop one peak **onto** another (it glows green when they'd merge) |
 | Delete / duplicate | Drag to the **🗑 trash** / **⧉ copy** zones that appear at the bottom |
 | Add a task | **Double-click** empty ground |
@@ -115,7 +116,7 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 | Multi-select | Drag a box on empty ground · **Shift/⌘-click** to toggle peaks · totals appear in the HUD |
 | Copy / paste / delete selection | **⌘/Ctrl+C**, **⌘/Ctrl+V**, **Delete** · **Esc** clears/cancels |
 | Pan | **Ctrl/⌘ + drag** (cursor becomes a hand) |
-| Zoom | Mouse wheel, trackpad pinch, or the **+/−** buttons (100% = the whole map filling the frame, up to 400%) |
+| Zoom | Mouse wheel, trackpad pinch, or the **+/−** buttons (100% = the whole world, up to 400%) |
 
 ### Touch controls (phone/tablet)
 | Action | How |
@@ -134,13 +135,17 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 
 ## 5. Completed tab
 
-Every finished task with its completion timestamp, grouped by day. The list's **Completed** section shows recent ones inline (collapsed by default). Use **Clear Done** to tidy, **Save Report** to export.
+Every finished task with its completion timestamp, plus a summary. The List view also shows recent completed tasks inline (collapsed by default). Tools on this tab:
+- **Export CSV** — download the completed log as a spreadsheet-friendly CSV.
+- **Clear All** — empty the completed history.
+
+For a richer, formatted snapshot (active + completed + stats), use **Save Report** in the tab bar (downloads HTML).
 
 ---
 
 ## 6. Sync across devices (optional)
 
-Open **Sync** (top of the left panel) → enter the **same sync code** on each device. Tasks, categories, history, and stats sync in realtime. No code, no cloud — without it the app is 100% local.
+Open **Sync** (the badge at the top of the left panel) → enter the **same sync code** on each device. Tasks, categories, history, and stats sync in realtime. Generate a fresh code with **✨ New** on your first device, then enter that code on the others. Without a code the app is 100% local — no cloud, no account.
 
 ---
 
@@ -148,8 +153,8 @@ Open **Sync** (top of the left panel) → enter the **same sync code** on each d
 
 | Key | Where | Action |
 |---|---|---|
-| **Space** | Anywhere (outside text fields) | Start / pause the timer |
-| **R** | Anywhere (outside text fields) | Restart the session |
+| **Space** | Anywhere (outside inputs) | Start / pause the timer |
+| **R** | Anywhere | Restart the session |
 | **⌘/Ctrl + C / V** | Map | Copy / paste selected peak(s) |
 | **Delete / Backspace** | Map | Delete selection (or the selected peak) |
 | **Esc** | Map | Cancel a drag · clear the selection |
@@ -164,6 +169,7 @@ Open **Sync** (top of the left panel) → enter the **same sync code** on each d
 3. **Use 🌙 instead of deleting.** It returns tomorrow; nothing is silently lost. When FACE IT! appears, do it first or break it into a smaller mountain.
 4. **Plan on the map, execute on the list.** Arrange your day spatially, watch for the red 8h overflow, then switch to ≡ and run the timer.
 5. **Focus Mode when the list itself is the distraction.**
+6. **Rewrite the motivation banner** in your own words — it's the one bit of the screen that's purely yours.
 
 ---
 
@@ -172,10 +178,10 @@ Open **Sync** (top of the left panel) → enter the **same sync code** on each d
 | Symptom | Fix |
 |---|---|
 | Sounds don't play | Tap/press something first — browsers require one interaction before audio |
-| "Storage full" toast appears | Your device's local storage is full (usually very long history or large notes). Your latest change wasn't saved — tap **Save Report** to export, then **Clear Done** / archive old items to free space |
 | New version doesn't show up | The app updates on the next *online* refresh; close and reopen once |
 | Long-press shows no keyboard (iOS) | Release your finger — the input opens on release, then the keyboard follows |
 | Synced devices disagree | Last write wins; make sure both run the latest version and the same sync code |
-| Lost everything? | If you exported, your **Save Report** HTML has the data. Reset Data warns before wiping |
+| Lost everything? | If you exported, your **Save Report** HTML (or **Export CSV**) has the data. Reset Data warns before wiping |
+| No motivation banner on my phone | It's desktop-only by design, to keep the mobile timer compact |
 
 *Your data never leaves your device unless you turn on sync (your code, Supabase) — there are no accounts and no analytics.*
