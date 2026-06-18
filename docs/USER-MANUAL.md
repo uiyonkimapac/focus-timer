@@ -16,7 +16,7 @@
 - **Offline:** after the first visit, the app — including sounds — works with no connection. (The font and the optional sync library load from the network the first time only.)
 
 ### The screen
-- **Left panel** (top on phones): the **logo + theme toggle + sync badge**, the timer (mode buttons, ring, controls), the selected task's notes, today's two stat cards, and — on desktop — your editable **motivation banner**.
+- **Left panel** (top on phones): the **logo + theme toggle + sync badge**, the timer (mode buttons, ring, controls), the selected task's notes, and today's three stat cards.
 - **Main area:** the **Tasks** tab (List or Map view) and the **Completed** tab, with **Reset Data** and **Save Report** in the top-right.
 
 ---
@@ -37,12 +37,10 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 
 **Notes:** the notepad under the timer belongs to the *selected task* — links, sub-steps, thoughts. It saves as you type and follows the task (it's disabled until you select one).
 
-**Today's stats** — two cards under the timer:
-- **Tasks Left** — how many active (not-done) tasks remain.
-- **Done Today** — tasks you completed today.
-
-### Motivation banner (desktop only)
-Below the stats, two lines of editable motivation — defaults **"Now or Never!"** / **"Right Now, Right Here"**. Click either line to rewrite it. The **Aa · style** button opens a customizer to set the **font, size (14–72px), and colour** per line. It's hidden on phones to keep the mobile timer compact.
+**Today's stats** — three cards under the timer, all scoped to *today* (they reset at midnight):
+- **Focused** — time you've actually focused today (counts up minute by minute while the timer runs).
+- **Remaining** — total time still allocated across your active tasks.
+- **Done** — tasks you completed today.
 
 ---
 
@@ -169,7 +167,7 @@ Open **Sync** (the badge at the top of the left panel) → enter the **same sync
 3. **Use 🌙 instead of deleting.** It returns tomorrow; nothing is silently lost. When FACE IT! appears, do it first or break it into a smaller mountain.
 4. **Plan on the map, execute on the list.** Arrange your day spatially, watch for the red 8h overflow, then switch to ≡ and run the timer.
 5. **Focus Mode when the list itself is the distraction.**
-6. **Rewrite the motivation banner** in your own words — it's the one bit of the screen that's purely yours.
+6. **Glance at the Focused card** for a guilt-free read on the day — it counts the time you actually put in, not the time you meant to.
 
 ---
 
@@ -182,6 +180,6 @@ Open **Sync** (the badge at the top of the left panel) → enter the **same sync
 | Long-press shows no keyboard (iOS) | Release your finger — the input opens on release, then the keyboard follows |
 | Synced devices disagree | Last write wins; make sure both run the latest version and the same sync code |
 | Lost everything? | If you exported, your **Save Report** HTML (or **Export CSV**) has the data. Reset Data warns before wiping |
-| No motivation banner on my phone | It's desktop-only by design, to keep the mobile timer compact |
+| "Focused" shows 0m | It resets at midnight — it's today's focused time, so a fresh day starts at zero |
 
 *Your data never leaves your device unless you turn on sync (your code, Supabase) — there are no accounts and no analytics.*
