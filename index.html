@@ -298,94 +298,6 @@ body.break .mode-btn.active {
   outline: none;
   margin-bottom: 3px;
 }
-.motivate-text {
-  margin-top: auto;
-  margin-bottom: 60px;
-  padding-top: 20px;
-  text-align: center;
-  line-height: 1.2;
-}
-.motivate-line1 {
-  font-family: 'Baguet Script', cursive;
-  font-size: 38px;
-  color: var(--accent);
-  letter-spacing: 1px;
-  -webkit-text-stroke: 2px var(--accent);
-  paint-order: stroke fill;
-  filter: drop-shadow(0 0 12px var(--accent-glow));
-}
-.motivate-line2 {
-  font-family: 'Baguet Script', cursive;
-  font-size: 22px;
-  color: var(--text2);
-  margin-top: 6px;
-  letter-spacing: 1px;
-  -webkit-text-stroke: 1.5px var(--text2);
-  paint-order: stroke fill;
-}
-/* Editable motivation: quiet by default; a subtle cue on hover, a real box on focus. */
-.motivate-line1, .motivate-line2 {
-  outline: none; cursor: text;
-  border-radius: 8px; padding: 2px 8px;
-  transition: background 0.15s, box-shadow 0.15s;
-}
-.motivate-line1:hover, .motivate-line2:hover { background: rgba(255,255,255,0.04); }
-.motivate-line1:focus, .motivate-line2:focus {
-  background: rgba(255,255,255,0.06);
-  box-shadow: inset 0 0 0 1px var(--border2);
-  -webkit-text-stroke-width: 0 !important; filter: none !important; /* legible while typing (beats inline styles) */
-}
-/* Empty line shows its default text faintly as a placeholder. */
-.motivate-line1:empty::before, .motivate-line2:empty::before {
-  content: attr(data-placeholder); opacity: 0.35;
-}
-/* ── Motivation style customizer ── */
-.motivate-text { position: relative; }
-.motivate-custom-toggle {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin: 12px auto 0; padding: 4px 12px;
-  font-family: 'DM Sans', sans-serif; font-size: 11px; letter-spacing: 0.3px;
-  color: var(--text3); background: transparent;
-  border: 1px solid var(--border); border-radius: 14px; cursor: pointer;
-  opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s;
-}
-.motivate-text:hover .motivate-custom-toggle,
-.motivate-custom-toggle:focus-visible,
-.motivate-text.customizing .motivate-custom-toggle { opacity: 1; }
-.motivate-custom-toggle:hover { color: var(--text); border-color: var(--border2); }
-.motivate-customizer {
-  display: none; position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: calc(100% + 8px); width: 260px; padding: 12px;
-  background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: 12px; box-shadow: 0 14px 44px rgba(0,0,0,0.45);
-  text-align: left; z-index: 60;
-}
-.motivate-customizer.open { display: block; }
-.mc-target { display: flex; gap: 4px; background: var(--surface3); padding: 3px; border-radius: 8px; margin-bottom: 12px; }
-.mc-tab {
-  flex: 1; padding: 5px 0; border: none; border-radius: 6px; cursor: pointer;
-  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
-  background: transparent; color: var(--text2); transition: all 0.15s;
-}
-.mc-tab.active { background: var(--surface); color: var(--text); font-weight: 600; }
-.mc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
-.mc-row > span { font-family: 'DM Sans', sans-serif; font-size: 11px; color: var(--text3); white-space: nowrap; }
-.mc-row > span em { font-style: normal; color: var(--text); font-family: 'DM Mono', monospace; }
-.mc-font {
-  flex: 1; min-width: 0; padding: 6px 8px; border-radius: 7px;
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer;
-}
-.mc-size { flex: 1; min-width: 0; accent-color: var(--accent); cursor: pointer; }
-.mc-row-color { align-items: flex-start; }
-.mc-swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: 1; }
-.mc-swatch {
-  width: 100%; aspect-ratio: 1; border-radius: 50%; cursor: pointer;
-  border: 2px solid transparent; padding: 0; background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px rgba(128,128,128,0.55); /* ring keeps white & black swatches visible */
-}
-.mc-swatch.active { border-color: var(--text); }
-.mc-hint { font-family: 'DM Sans', sans-serif; font-size: 10px; line-height: 1.5; color: var(--text3); opacity: 0.8; margin-top: 2px; }
 .stat-card {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 10px 8px; text-align: center;
@@ -568,12 +480,27 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 .map-peak.is-mit .map-peak-detail { stroke: #e3b341; }
 .map-peak.misted { opacity: 0.32; }
 .map-peak.active .map-peak-body { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 8px var(--accent-glow)); }
+/* Labels on demand (redesign): keep the board calm with many peaks — only the
+   active, MIT, or selected peak is labelled; the rest reveal their name on hover.
+   Pure CSS, so drag / hit-test geometry is untouched. */
+.map-peak-label, .map-peak-mins { opacity: 0; transition: opacity 0.15s; }
+.map-peak:hover .map-peak-label, .map-peak:hover .map-peak-mins,
+.map-peak.active .map-peak-label, .map-peak.active .map-peak-mins,
+.map-peak.is-mit .map-peak-label, .map-peak.is-mit .map-peak-mins,
+.map-peak.selected .map-peak-label, .map-peak.selected .map-peak-mins { opacity: 1; }
+.map-range-terrain { fill: none; stroke: color-mix(in srgb, var(--cat-color) 50%, var(--map-ink)); stroke-width: 1.5; stroke-dasharray: 2 11; opacity: 0.38; pointer-events: none; }
+@media (pointer: coarse) {
+  /* No hover on touch — show labels (pinch-zoom handles density). */
+  .map-peak-label, .map-peak-mins { opacity: 0.92; }
+}
 .map-peak-start { cursor: pointer; }
 .map-peak-start circle { fill: var(--accent); stroke: #fff; stroke-width: 1.5; }
 .map-peak-start text { fill: #fff; font-size: 14px; pointer-events: none; }
 .map-peak-done { cursor: pointer; }
 .map-peak-done circle { fill: var(--green); stroke: #fff; stroke-width: 1.5; }
 .map-peak-done text { fill: #fff; font-size: 14px; font-weight: 700; pointer-events: none; }
+.map-peak-start path { fill: #fff; pointer-events: none; }
+.map-peak-done .map-done-tick { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .map-range-marker { cursor: grab; }
 .map-range-marker:active { cursor: grabbing; }
 .map-peak.dragging { cursor: grabbing; }
@@ -764,6 +691,13 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 .task-card:hover .btn-del { opacity: 1; }
 .btn-del:hover { color: var(--red); }
 
+/* Refined task-card icon buttons — line-art, one weight, shared palette. */
+.btn-edit, .btn-del, .btn-start-task { display: inline-flex; align-items: center; justify-content: center; }
+.drag-handle svg { width: 16px; height: 16px; display: block; }
+.btn-not-today svg { width: 16px; height: 16px; display: block; }
+.btn-edit svg, .btn-del svg { width: 15px; height: 15px; display: block; }
+.btn-start-task svg { width: 12px; height: 12px; display: block; }
+
 /* ── HISTORY PANE ── */
 .history-pane { padding: 24px 28px 16px; }
 .history-toolbar {
@@ -812,7 +746,6 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
   display: flex; flex-direction: column; gap: 20px;
   padding-bottom: 40px;
 }
-.day-group {}
 .day-label {
   font-size: 11px; font-weight: 600; letter-spacing: 1px;
   text-transform: uppercase; color: var(--text3);
@@ -836,6 +769,9 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
   color: var(--blue); font-size: 11px;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
+.hist-check svg { width: 13px; height: 13px; display: block; }
+.hist-del-btn { display: inline-flex; align-items: center; justify-content: center; }
+.hist-del-btn svg { width: 14px; height: 14px; display: block; }
 .hist-info { flex: 1; min-width: 0; }
 .hist-name {
   font-size: 13px; font-weight: 500; color: var(--text);
@@ -1221,7 +1157,6 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   .stat-card { padding: 10px 6px; }
   .stat-val { font-size: 18px; }
 
-  .motivate-text { display: none; }
 
   /* main area takes the rest — mobile uses page scroll, not the desktop
      app-shell, so undo the pinned viewport height + inner-scroll clipping. */
@@ -1400,26 +1335,19 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 /* ── PHASE 1: MIT chip (yellow "MIT" text, bold, prominent) ── */
 /* Hidden by default — only the active MIT card shows it always; other
    cards reveal it on hover so the user can still promote them. */
+/* MIT = a small gold summit (echoes the Mountain Board). Outline when unset
+   (revealed on hover), filled gold when the task is the Most Important Task. */
 .btn-mit {
-  background: var(--amber-soft);
-  border: 1.5px solid color-mix(in srgb, var(--amber) 50%, transparent);
-  border-radius: 5px;
-  cursor: pointer; flex-shrink: 0;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 10px; font-weight: 700; letter-spacing: 1px;
-  padding: 3px 6px; line-height: 1;
-  color: var(--amber); opacity: 0;          /* full-strength ochre — readable on cream */
-  transition: all 0.15s;
-  display: flex; align-items: center;
+  background: none; border: none; padding: 2px;
+  cursor: pointer; flex-shrink: 0; line-height: 0;
+  color: var(--amber); opacity: 0;
+  transition: opacity 0.15s, transform 0.15s, filter 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.task-card:hover .btn-mit { opacity: 0.9; }
-.btn-mit:hover { transform: scale(1.08); opacity: 1; }
-.btn-mit.active {
-  opacity: 1;
-  background: var(--amber); color: #2a1f00;  /* dark text on the ochre pill */
-  border-color: var(--amber);
-  box-shadow: 0 0 10px var(--amber-soft);
-}
+.btn-mit svg { width: 18px; height: 18px; display: block; }
+.task-card:hover .btn-mit { opacity: 0.7; }
+.btn-mit:hover { transform: scale(1.1); opacity: 1; }
+.btn-mit.active { opacity: 1; filter: drop-shadow(0 0 5px var(--amber-soft)); }
 .task-card.is-mit {
   border-color: var(--amber);
   border-width: 2px;
@@ -1525,7 +1453,6 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   .app-logo { margin-bottom: 10px; }
   .mode-row { margin-bottom: 10px; }
   .timer-section { margin-bottom: 10px; }
-  .motivate-text { display: none; }
 
   .main-area { flex: 1; height: 100dvh; overflow: hidden; }
   .tab-content, .tab-pane { min-height: 0; }
@@ -1686,41 +1613,19 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 
   <div class="stats-row">
     <div class="stat-card">
-      <div class="stat-val" id="statSessions">0</div>
-      <div class="stat-lbl">Tasks Left</div>
+      <div class="stat-val" id="statFocused">0m</div>
+      <div class="stat-lbl">Focused</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statRemaining">0m</div>
+      <div class="stat-lbl">Remaining</div>
     </div>
     <div class="stat-card">
       <div class="stat-val" id="statDone">0</div>
-      <div class="stat-lbl">Done Today</div>
+      <div class="stat-lbl">Done</div>
     </div>
   </div>
-  <div class="motivate-text" id="motivateText">
-    <div class="motivate-line1" id="motivate1" contenteditable="true" spellcheck="false"
-      role="textbox" aria-label="Motivational line 1 — click to edit"
-      data-placeholder="Now or Never!" title="Click to edit your motivation">Now or Never!</div>
-    <div class="motivate-line2" id="motivate2" contenteditable="true" spellcheck="false"
-      role="textbox" aria-label="Motivational line 2 — click to edit"
-      data-placeholder="Right Now, Right Here" title="Click to edit your motivation">Right Now, Right Here</div>
-    <button class="motivate-custom-toggle" id="motivateCustomBtn" onclick="toggleMotivateCustomizer()"
-      title="Customize font, size and color" aria-label="Customize motivation style">Aa · style</button>
-    <div class="motivate-customizer" id="motivateCustomizer" role="dialog" aria-label="Motivation style">
-      <div class="mc-target" role="tablist">
-        <button class="mc-tab active" data-line="1" onclick="setMotivateTarget(1,this)">Line 1</button>
-        <button class="mc-tab" data-line="2" onclick="setMotivateTarget(2,this)">Line 2</button>
-      </div>
-      <label class="mc-row"><span>Font</span>
-        <select class="mc-font" id="mcFont" onchange="applyMotivateStyle('font', this.value)"></select>
-      </label>
-      <label class="mc-row"><span>Size <em id="mcSizeVal">38</em></span>
-        <input class="mc-size" id="mcSize" type="range" min="14" max="72" step="1"
-          oninput="applyMotivateStyle('size', this.value)"/>
-      </label>
-      <div class="mc-row mc-row-color"><span>Color</span>
-        <div class="mc-swatches" id="mcSwatches"></div>
-      </div>
-      <div class="mc-hint">Recommended: 28–48px (headline) · 18–30px (subline)</div>
-    </div>
-  </div>
+  <!-- Motivational slogan removed in redesign — the timer is the emotional center. -->
 </div>
 
 <!-- MAIN AREA -->
@@ -1932,6 +1837,9 @@ let running = false, ticker = null;
 // wall-clock anchor — survives tab/app backgrounding on iOS, throttled tabs on desktop
 let tickAnchorMs = 0, tickAnchorRemaining = 0;
 let sessionsDone = 0, minsFocused = 0, sessionStartSecs = 0, elapsedSecs = 0;
+// minsFocused is lifetime (feeds Save Report + sync); minsFocusedToday is the
+// today-scoped figure shown on the "Focused" stat card, rolled over at midnight.
+let minsFocusedToday = 0, focusedDay = '';
 let tasks = [], history = [], categories = [];
 let uncatCollapsed = false;
 let activeId = null;
@@ -1976,7 +1884,7 @@ function saveAll() {
   try {
     localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
     localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
-    localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
+    localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused, minsFocusedToday, focusedDay }));
     localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
     storageFullNotified = false; // a clean write clears the warning state
   } catch(e) {
@@ -2009,7 +1917,7 @@ async function pushToCloud() {
     sync_id: syncCode,
     data: {
       tasks, history, categories,
-      stats: { sessionsDone, minsFocused },
+      stats: { sessionsDone, minsFocused, minsFocusedToday, focusedDay },
       ts: Date.now(),
       dataTimestamp,
       lastClearedAt,
@@ -2062,7 +1970,7 @@ function applyRemote(d) {
     if (Array.isArray(d.tasks))      tasks      = d.tasks;
     if (Array.isArray(d.history))    history    = d.history;
     if (Array.isArray(d.categories)) categories = d.categories;
-    if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; }
+    if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; minsFocusedToday = d.stats.minsFocusedToday || 0; focusedDay = d.stats.focusedDay || ''; }
     // tasks from older clients may lack categoryId — default to null (Uncategorized)
     tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
     if (activeId && !tasks.find(t => t.id === activeId)) {
@@ -2078,7 +1986,7 @@ function applyRemote(d) {
     try {
       localStorage.setItem(STORAGE_TASKS, JSON.stringify(tasks));
       localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
-      localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused }));
+      localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused, minsFocusedToday, focusedDay }));
       localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
     } catch(e) { console.warn('sync pull: local persist failed', e); notifyStorageFull(); }
     renderTasks(); renderHistory(); renderActivePill(); updateStats(); renderDots();
@@ -2157,7 +2065,7 @@ function loadAll() {
     if (t) tasks = JSON.parse(t);
     if (h) history = JSON.parse(h);
     if (c) categories = JSON.parse(c);
-    if (s) { const p = JSON.parse(s); sessionsDone = p.sessionsDone||0; minsFocused = p.minsFocused||0; }
+    if (s) { const p = JSON.parse(s); sessionsDone = p.sessionsDone||0; minsFocused = p.minsFocused||0; minsFocusedToday = p.minsFocusedToday||0; focusedDay = p.focusedDay||''; }
     // restore version state — survives reloads so a clear stays sticky
     dataTimestamp = parseInt(localStorage.getItem(STORAGE_DATATS) || '0', 10) || 0;
     lastClearedAt = parseInt(localStorage.getItem(STORAGE_CLEAREDAT) || '0', 10) || 0;
@@ -2272,6 +2180,7 @@ function flushElapsed() {
   const fullMins = Math.floor(elapsedSecs / 60);
   if (fullMins > 0) {
     minsFocused += fullMins;
+    rollFocusedDay(); minsFocusedToday += fullMins;
     const secsToCredit = fullMins * 60;
     elapsedSecs -= secsToCredit; // keep remainder seconds
     const activeTask = tasks.find(x => x.id === activeId);
@@ -2305,6 +2214,7 @@ function tick() {
   let creditedMinute = false;
   while (elapsedSecs >= 60) {
     minsFocused++;
+    rollFocusedDay(); minsFocusedToday++;
     elapsedSecs -= 60;
     const t = tasks.find(x => x.id === activeId);
     if (t) t.secsSpent = (t.secsSpent || 0) + 60;
@@ -2433,7 +2343,11 @@ function renderDots() {
   }
 }
 function updateStats() {
-  document.getElementById('statSessions').textContent = tasks.filter(t=>!t.done).length;
+  const fmtHM = s => { const m = Math.max(0, Math.round(s/60)); return m>=60 ? Math.floor(m/60)+'h'+String(m%60).padStart(2,'0') : m+'m'; };
+  const remainSecs = tasks.filter(t=>!t.done).reduce((a,t)=>a+(t.secsRemaining||0),0);
+  rollFocusedDay();
+  document.getElementById('statFocused').textContent = fmtHM(minsFocusedToday*60);
+  document.getElementById('statRemaining').textContent = fmtHM(remainSecs);
   const todayDone = history.filter(h => isToday(h.completedAt)).length;
   document.getElementById('statDone').textContent = todayDone;
   document.getElementById('taskBadge').textContent = tasks.filter(t=>!t.done).length;
@@ -2443,6 +2357,10 @@ function isToday(ts) {
   const d = new Date(ts), n = new Date();
   return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
 }
+// rollFocusedDay() zeroes today's focus tally when the calendar day changes
+// (reuses the existing todayKey()), so the "Focused" card resets at midnight
+// even if the app stays open.
+function rollFocusedDay() { const k = todayKey(); if (focusedDay !== k) { focusedDay = k; minsFocusedToday = 0; } }
 
 // ── ACTIVE TASK ──
 function setActive(id, autoStart) {
@@ -2986,7 +2904,7 @@ function renderTaskCard(t) {
   const pct = t.mins>0 ? Math.min(100, Math.round(((t.mins*60-t.secsRemaining)/(t.mins*60))*100)) : 0;
   const srcTag = t.source==='gtasks'
     ? `<span class="tag-source gtasks">Google Tasks</span>`
-    : `<span class="tag-source manual">Manual</span>`;
+    : '';
   const sessTag = t.sessions>0 ? `<span class="tag-sessions">◉ ${t.sessions}×</span>` : '';
   const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : null;
   const catAttr = cat ? `style="--cat-color:${cat.color}" data-cat-color="${cat.color}"` : '';
@@ -2994,8 +2912,8 @@ function renderTaskCard(t) {
   const mitClass = t.isMIT ? ' is-mit' : '';
   const hidden = isHiddenToday(t);
   const streakWarn = (t.notTodayStreak >= 3) ? '<span class="streak-warn" title="Snoozed multiple days in a row">FACE IT!</span>' : '';
-  const mitBtn = !t.done ? `<button class="btn-mit ${t.isMIT?'active':''}" onclick="event.stopPropagation();toggleMIT(${t.id})" title="${t.isMIT?'Remove Most Important':'Mark as Most Important Task'}">MIT</button>` : '';
-  const moonBtn = !t.done ? `<button class="btn-not-today ${hidden?'active':''}" onclick="event.stopPropagation();toggleNotToday(${t.id})" title="${hidden?'Bring back to today':'Not today (auto-returns tomorrow)'}">🌙</button>` : '';
+  const mitBtn = !t.done ? `<button class="btn-mit ${t.isMIT?'active':''}" onclick="event.stopPropagation();toggleMIT(${t.id})" title="${t.isMIT?'Remove Most Important':'Mark as Most Important Task'}">${t.isMIT?MIT_SVG_ON:MIT_SVG_OFF}</button>` : '';
+  const moonBtn = !t.done ? `<button class="btn-not-today ${hidden?'active':''}" onclick="event.stopPropagation();toggleNotToday(${t.id})" title="${hidden?'Bring back to today':'Not today (auto-returns tomorrow)'}">${MOON_SVG}</button>` : '';
   const recurBtn = !t.done ? `<button class="btn-recur ${t.recur?'active':''}" onclick="event.stopPropagation();cycleRecur(${t.id})" title="${esc(recurTitle(t))}">${REPEAT_SVG}</button>` : '';
   const recurTag = t.recur ? `<span class="tag-recur" title="${esc(recurTitle(t))}">${REPEAT_SVG}${esc(recurLabel(t))}</span>` : '';
   return `
@@ -3005,7 +2923,7 @@ function renderTaskCard(t) {
        draggable="${!t.done && FINE_POINTER}"
        ${catAttr}
        onclick="selectTask(${t.id})">
-    ${!t.done ? `<div class="drag-handle" title="Drag to reorder">⋮⋮</div>` : `<div class="drag-handle ghost"></div>`}
+    ${!t.done ? `<div class="drag-handle" title="Drag to reorder">${GRIP_SVG}</div>` : `<div class="drag-handle ghost"></div>`}
     ${mitBtn}
     <div class="check-wrap" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</div>
     <div class="task-info">
@@ -3020,9 +2938,9 @@ function renderTaskCard(t) {
       <div class="time-badge" onclick="event.stopPropagation();toggleTE(${t.id})" title="Click to change time">${fmtSecs(t.secsRemaining)}</div>
       ${recurBtn}
       ${moonBtn}
-      ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? '⏸' : '▶'}</button>` : ''}
-      ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">✎</button>` : ''}
-      <button class="btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</button>
+      ${!t.done ? `<button class="btn-start-task ${isAct && running ? 'is-running' : ''}" onclick="event.stopPropagation();startTask(${t.id})" title="${isAct && running ? 'Pause' : 'Start this task'}">${isAct && running ? PAUSE_SVG : PLAY_SVG}</button>` : ''}
+      ${!t.done ? `<button class="btn-edit" onclick="event.stopPropagation();renameTask(${t.id})" title="Rename">${EDIT_SVG}</button>` : ''}
+      <button class="btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">${DEL_SVG}</button>
     </div>
   </div>`;
 }
@@ -3349,13 +3267,13 @@ function peakCenter(nx, ny) {
   };
 }
 function peakHeight(t) {
-  const base = mclamp(34 + (t.mins || 0) * 0.9, 40, 150);
-  return base * (t.isMIT ? 1.25 : 1);
+  const base = mclamp(24 + (t.mins || 0) * 0.55, 30, 104);
+  return base * (t.isMIT ? 1.22 : 1);
 }
 // Half-width also grows with allocated time, so longer tasks are bigger mountains.
 function peakWidth(t) {
-  const base = mclamp(34 + (t.mins || 0) * 0.34, 38, 120);
-  return base * (t.isMIT ? 1.12 : 1);
+  const base = mclamp(26 + (t.mins || 0) * 0.22, 30, 86);
+  return base * (t.isMIT ? 1.1 : 1);
 }
 // Mountain silhouette (etched-map style): base sits at cy, apex points up by
 // peakHeight. Concave flanks + a small shoulder summit on the left — reads as
@@ -3467,6 +3385,7 @@ function mapAxisLayer() {
   s += `<line class="map-axis-mid" x1="${midX}" y1="${top + 22}" x2="${midX}" y2="${bottom - 6}"/>`;
   s += `<path class="map-axis-arrow" d="M ${midX - 8} ${top + 38} L ${midX} ${top + 20} L ${midX + 8} ${top + 38}"/>`;
   s += `<text class="map-axis-cap" x="${midX + 16}" y="${top + 36}" text-anchor="start">PRIORITY · HIGH</text>`;
+  s += `<text class="map-axis-cap" x="${midX + 16}" y="${((top + bottom) / 2).toFixed(1)}" text-anchor="start" style="opacity:0.55">MED</text>`;
   s += `<text class="map-axis-cap" x="${midX + 16}" y="${bottom - 14}" text-anchor="start">LOW</text>`;
   return `<g class="map-grid">${s}</g>`;
 }
@@ -3546,6 +3465,7 @@ function renderMap() {
     // range is easy to grab anywhere in it (the thin line alone was hard to hit).
     const hitY = ridgeBaseY - RANGE_AMP - 8, hitH = (nameY + 12) - hitY;
     ranges += `<g class="map-range" data-cat-id="${cat.id}" style="--cat-color:${cat.color}">`
+      + `<path class="map-range-terrain" d="M ${rx1.toFixed(1)} ${lowBase.toFixed(1)} Q ${midX.toFixed(1)} ${(lowBase - 12).toFixed(1)} ${rx2.toFixed(1)} ${lowBase.toFixed(1)}"/>`
       + `<g class="map-range-marker" data-cat-id="${cat.id}">`
       +   `<rect class="map-range-hit" x="${rx1.toFixed(1)}" y="${hitY.toFixed(1)}" width="${(rx2 - rx1).toFixed(1)}" height="${hitH.toFixed(1)}" rx="14"/>`
       +   `<path class="map-range-ridge" d="${ridgeD}"/>`
@@ -3573,14 +3493,17 @@ function renderMap() {
     if (t.id === activeId && !t.done) {
       const apex = c.cy - peakHeight(t);
       const sy = c.cy - peakHeight(t) * 0.40; // within the body
-      const ic = (t.id === activeId && running) ? '⏸' : '▶';
+      const cx = c.cx, syf = sy;
+      const startGlyph = (t.id === activeId && running)
+        ? `<path d="M ${(cx-4.5).toFixed(1)} ${(syf-6).toFixed(1)} h3.2 v12 h-3.2 Z M ${(cx+1.3).toFixed(1)} ${(syf-6).toFixed(1)} h3.2 v12 h-3.2 Z"/>`
+        : `<path d="M ${(cx-4).toFixed(1)} ${(syf-6).toFixed(1)} L ${(cx+7).toFixed(1)} ${syf.toFixed(1)} L ${(cx-4).toFixed(1)} ${(syf+6).toFixed(1)} Z"/>`;
       apexCtl = `<g class="map-peak-start" data-start-id="${t.id}">`
-        + `<circle cx="${c.cx.toFixed(1)}" cy="${sy.toFixed(1)}" r="13"/>`
-        + `<text x="${c.cx.toFixed(1)}" y="${(sy + 4).toFixed(1)}" text-anchor="middle">${ic}</text>`
+        + `<circle cx="${cx.toFixed(1)}" cy="${syf.toFixed(1)}" r="13"/>`
+        + startGlyph
         + `</g>`
         + `<g class="map-peak-done" data-done-id="${t.id}" title="Complete (click the summit)">`
-        + `<circle cx="${c.cx.toFixed(1)}" cy="${apex.toFixed(1)}" r="11"/>`
-        + `<text x="${c.cx.toFixed(1)}" y="${(apex + 4).toFixed(1)}" text-anchor="middle">✓</text>`
+        + `<circle cx="${cx.toFixed(1)}" cy="${apex.toFixed(1)}" r="11"/>`
+        + `<path class="map-done-tick" d="M ${(cx-5).toFixed(1)} ${apex.toFixed(1)} L ${(cx-1.5).toFixed(1)} ${(apex+4).toFixed(1)} L ${(cx+5.5).toFixed(1)} ${(apex-4.5).toFixed(1)}"/>`
         + `</g>`;
     }
     const minsLbl = (t.mins || 0)
@@ -3605,7 +3528,7 @@ function renderMap() {
     const x8 = autoX(WORKDAY_MIN) * MAP_VB_W;
     capacity = `<g class="map-overflow">`
       + `<rect class="map-overflow-band" x="${x8.toFixed(1)}" y="0" width="${(MAP_VB_W - x8).toFixed(1)}" height="${MAP_VB_H}"/>`
-      + `<text class="map-overflow-label" x="${MAP_VB_W - 36}" y="46" text-anchor="end">⚠ ${fmtMins(totalMins)} planned · over 8h</text>`
+      + `<text class="map-overflow-label" x="${MAP_VB_W - 36}" y="46" text-anchor="end">${fmtMins(totalMins)} planned · over 8h</text>`
       + `</g>`;
   }
 
@@ -4638,11 +4561,11 @@ function renderHistory() {
       </div>
       ${items.map(h => `
       <div class="hist-item">
-        <div class="hist-check">✓</div>
+        <div class="hist-check">${CHECK_SVG}</div>
         <div class="hist-info">
           <div class="hist-name">${esc(h.name)}</div>
           <div class="hist-meta">
-            <span class="hist-tag ${h.source==='gtasks'?'':'manual'}">${h.source==='gtasks'?'Google Tasks':'Manual'}</span>
+            ${h.source==='gtasks'?'<span class="hist-tag">Google Tasks</span>':''}
             <span class="hist-detail">${h.sessions>0?'◉ '+h.sessions+' session'+(h.sessions>1?'s':'')+' · ':''} allocated ${h.mins}m</span>
           </div>
         </div>
@@ -4650,7 +4573,7 @@ function renderHistory() {
           <div class="hist-time-badge">${fmtSecs(h.secsSpent)} spent</div>
           <div class="hist-completed-at">${fmtTime(h.completedAt)}</div>
         </div>
-        <button class="hist-del-btn" onclick="deleteHistory('${h.id}')" title="Remove">✕</button>
+        <button class="hist-del-btn" onclick="deleteHistory('${h.id}')" title="Remove">${DEL_SVG}</button>
       </div>`).join('')}
     </div>`;
   }).join('');
@@ -4790,7 +4713,7 @@ function resetAllData() {
   if (!confirm('This will clear ALL tasks and history from this browser.' + syncMsg +
     '\n\nMake sure to Save Report first if you want to keep your data.\n\nContinue?')) return;
   tasks = []; history = []; categories = [];
-  sessionsDone = 0; minsFocused = 0; activeId = null;
+  sessionsDone = 0; minsFocused = 0; minsFocusedToday = 0; focusedDay = ''; activeId = null;
   remaining = 25*60; totalSec = 25*60; mode = 'focus';
   clearInterval(ticker); running = false;
   document.getElementById('btnPlay').innerHTML = '▶';
@@ -4988,6 +4911,17 @@ const RECUR_ORDER = [null, 'daily', 'weekdays', 'weekly'];
 const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 // Music-player "repeat" glyph (two looping arrows), line-art to match the app.
 const REPEAT_SVG = '<svg class="ico-repeat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>';
+// Refined task-card line icons (redesign) — line-art glyphs matching the
+// Mountain Board, interpolated into renderTaskCard.
+const MIT_SVG_ON  = '<svg viewBox="0 0 26 26" fill="none"><path d="M3 20 L9 9 L13.5 15 L17 6 L23 20 Z" fill="rgba(210,162,74,.32)" stroke="#d2a24a" stroke-width="1.7" stroke-linejoin="round"/><path d="M17 6 L19 10.5 L14.7 10.5 Z" fill="#f2ece0"/></svg>';
+const MIT_SVG_OFF = '<svg viewBox="0 0 26 26" fill="none"><path d="M3 20 L9 9 L13.5 15 L17 6 L23 20 Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+const MOON_SVG = '<svg viewBox="0 0 26 26" fill="none"><path d="M19 15.8 A7.5 7.5 0 1 1 11 6 A6 6 0 0 0 19 15.8 Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+const EDIT_SVG = '<svg viewBox="0 0 26 26" fill="none"><path d="M16.5 5.5 L20.5 9.5 L10 20 L6 20.8 L6.8 16.5 Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14.5 7.5 L18.5 11.5" stroke="currentColor" stroke-width="1.7"/></svg>';
+const DEL_SVG = '<svg viewBox="0 0 26 26" fill="none"><path d="M7 8.5 H19 M9.5 8.5 V19 A1.3 1.3 0 0 0 10.8 20.3 H15.2 A1.3 1.3 0 0 0 16.5 19 V8.5 M11 8.5 V6.5 A1 1 0 0 1 12 5.5 H14 A1 1 0 0 1 15 6.5 V8.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l11 7-11 7z"/></svg>';
+const PAUSE_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+const GRIP_SVG = '<svg viewBox="0 0 26 26" fill="currentColor"><circle cx="10" cy="7" r="1.4"/><circle cx="16" cy="7" r="1.4"/><circle cx="10" cy="13" r="1.4"/><circle cx="16" cy="13" r="1.4"/><circle cx="10" cy="19" r="1.4"/><circle cx="16" cy="19" r="1.4"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17.5 19 7"/></svg>';
 function recurLabel(t) {
   if (!t.recur) return '';
   if (t.recur === 'daily') return 'daily';
@@ -5138,12 +5072,6 @@ loadAll();
   if (localStorage.getItem('focustimer_fullMap') === '1') fullMap = true;
   const gBtn = document.getElementById('btnGuides');
   if (gBtn && mapGuides) gBtn.classList.add('active-mode');
-  // Restore the user's custom motivation text (falls back to the default markup).
-  [['motivate1','focustimer_motivate1'], ['motivate2','focustimer_motivate2']].forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    const saved = localStorage.getItem(key);
-    if (el && saved !== null) el.textContent = saved; // '' is valid → shows the faint placeholder
-  });
   syncThemeColorMeta();
 })();
 // PWA: offline shell + installability. file:// (local double-click) skips it.
@@ -5165,138 +5093,6 @@ setInterval(() => {
   if (a || b) renderTasks();
   renderMeta();
 }, 60000);
-
-// motivation lines: editable + persisted (plain text only, single line each)
-(function bindMotivation() {
-  [['motivate1','focustimer_motivate1'], ['motivate2','focustimer_motivate2']].forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const save = () => { try { localStorage.setItem(key, el.textContent.trim()); } catch(_) {} };
-    el.addEventListener('input', save);
-    el.addEventListener('blur', save);
-    // Enter commits (no multi-line / no <div> soup); Esc drops focus.
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); el.blur(); }
-    });
-    // Paste as plain text so pasted formatting can't break the script styling.
-    el.addEventListener('paste', (e) => {
-      e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\s+/g, ' ').trim();
-      document.execCommand('insertText', false, text);
-    });
-  });
-})();
-
-// ── Motivation style customizer: per-line font / size / color, persisted ──
-const MOTIVE_FONTS = [
-  { label: 'Script — Baguet',     css: "'Baguet Script', cursive" },
-  { label: 'Handwritten — Caveat',css: "'Caveat', cursive" },
-  { label: 'Serif — Playfair',    css: "'Playfair Display', Georgia, serif" },
-  { label: 'Serif — Cormorant',   css: "'Cormorant Garamond', Georgia, serif" },
-  { label: 'Display — Bebas',     css: "'Bebas Neue', sans-serif" },
-  { label: 'Sans — DM Sans',      css: "'DM Sans', sans-serif" },
-];
-const MOTIVE_COLORS = [
-  { label: 'Accent', css: 'var(--accent)' },
-  { label: 'Theme',  css: 'var(--text2)' },
-  { label: 'Gold',   css: '#d4a017' },
-  { label: 'Teal',   css: '#16a085' },
-  { label: 'Sky',    css: '#2980b9' },
-  { label: 'Violet', css: '#8e44ad' },
-  { label: 'White',  css: '#ffffff' },
-  { label: 'Black',  css: '#000000' },
-];
-let motiveStyle = {
-  1: { font: "'Baguet Script', cursive", size: 38, color: 'var(--accent)' },
-  2: { font: "'Baguet Script', cursive", size: 22, color: 'var(--text2)' },
-};
-let motiveTarget = 1;
-let motiveCustomizerBuilt = false;
-
-function applyMotiveStyleToEl(line) {
-  const el = document.getElementById('motivate' + line);
-  if (!el) return;
-  const s = motiveStyle[line];
-  el.style.fontFamily = s.font;
-  el.style.fontSize = s.size + 'px';
-  el.style.color = s.color;
-  // Stroke + glow scale with size and track the chosen color so the etched
-  // headline look stays cohesive at any size/colour.
-  el.style.webkitTextStrokeWidth = (s.size * 0.05).toFixed(2) + 'px';
-  el.style.webkitTextStrokeColor = s.color;
-  if (line === 1) el.style.filter = `drop-shadow(0 0 ${Math.round(s.size * 0.3)}px ${s.color})`;
-}
-function saveMotiveStyle() {
-  try { localStorage.setItem('focustimer_motiveStyle', JSON.stringify(motiveStyle)); } catch(_) {}
-}
-function applyMotivateStyle(prop, val) {
-  motiveStyle[motiveTarget][prop] = prop === 'size' ? +val : val;
-  applyMotiveStyleToEl(motiveTarget);
-  saveMotiveStyle();
-  if (prop === 'size') { const v = document.getElementById('mcSizeVal'); if (v) v.textContent = val; }
-  if (prop === 'color') syncMotiveSwatches();
-}
-function setMotivateTarget(line, btn) {
-  motiveTarget = line;
-  document.querySelectorAll('.mc-tab').forEach(t => t.classList.toggle('active', t === btn));
-  syncMotiveControls();
-}
-function syncMotiveSwatches() {
-  const cur = motiveStyle[motiveTarget].color;
-  document.querySelectorAll('.mc-swatch').forEach(sw => sw.classList.toggle('active', sw.dataset.css === cur));
-}
-function syncMotiveControls() {
-  const s = motiveStyle[motiveTarget];
-  const f = document.getElementById('mcFont'); if (f) f.value = s.font;
-  const sz = document.getElementById('mcSize'); if (sz) sz.value = s.size;
-  const sv = document.getElementById('mcSizeVal'); if (sv) sv.textContent = s.size;
-  syncMotiveSwatches();
-}
-function buildMotiveCustomizer() {
-  if (motiveCustomizerBuilt) return;
-  const fontSel = document.getElementById('mcFont');
-  fontSel.innerHTML = MOTIVE_FONTS.map(f => `<option value="${f.css.replace(/"/g,'&quot;')}" style="font-family:${f.css}">${f.label}</option>`).join('');
-  const sw = document.getElementById('mcSwatches');
-  sw.innerHTML = MOTIVE_COLORS.map(c =>
-    `<button class="mc-swatch" type="button" data-css="${c.css}" title="${c.label}" aria-label="${c.label}" style="background:${c.css}"></button>`).join('');
-  sw.querySelectorAll('.mc-swatch').forEach(b => b.addEventListener('click', () => applyMotivateStyle('color', b.dataset.css)));
-  motiveCustomizerBuilt = true;
-}
-function toggleMotivateCustomizer() {
-  const pop = document.getElementById('motivateCustomizer');
-  const wrap = document.getElementById('motivateText');
-  const open = !pop.classList.contains('open');
-  if (open) { buildMotiveCustomizer(); syncMotiveControls(); }
-  pop.classList.toggle('open', open);
-  wrap.classList.toggle('customizing', open);
-  if (open) {
-    setTimeout(() => {
-      document.addEventListener('pointerdown', motiveOutsideClose, true);
-      document.addEventListener('keydown', motiveEscClose, true);
-    }, 0);
-  } else { closeMotiveListeners(); }
-}
-function motiveOutsideClose(e) {
-  if (!document.getElementById('motivateText').contains(e.target)) closeMotivateCustomizer();
-}
-function motiveEscClose(e) { if (e.key === 'Escape') closeMotivateCustomizer(); }
-function closeMotiveListeners() {
-  document.removeEventListener('pointerdown', motiveOutsideClose, true);
-  document.removeEventListener('keydown', motiveEscClose, true);
-}
-function closeMotivateCustomizer() {
-  document.getElementById('motivateCustomizer').classList.remove('open');
-  document.getElementById('motivateText').classList.remove('customizing');
-  closeMotiveListeners();
-}
-// Restore saved motivation styling and apply it (runs after motiveStyle exists).
-(function initMotiveStyle() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('focustimer_motiveStyle') || 'null');
-    if (saved) { if (saved[1]) Object.assign(motiveStyle[1], saved[1]); if (saved[2]) Object.assign(motiveStyle[2], saved[2]); }
-  } catch (_) {}
-  applyMotiveStyleToEl(1); applyMotiveStyleToEl(2);
-})();
 
 // memo: bind once
 (function bindMemo() {
@@ -5345,8 +5141,8 @@ document.addEventListener('visibilitychange', () => {
 })();
 
 document.addEventListener('keydown', e => {
-  // Don't hijack keys while typing in a field — incl. contenteditable (the
-  // motivation text), else Space toggles the timer and R resets it mid-edit.
+  // Don't hijack keys while typing in a field — incl. any contenteditable,
+  // else Space toggles the timer and R resets it mid-edit.
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable) return;
   if(e.code==='Space'){e.preventDefault();toggleTimer();}
   if(e.code==='KeyR') resetTimer();
