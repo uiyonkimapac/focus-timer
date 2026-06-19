@@ -149,6 +149,10 @@ body.break .mode-btn.active {
   font-size: 10px; font-weight: 500;
   letter-spacing: 2px; text-transform: uppercase; color: var(--text3);
 }
+/* Overtime: the countdown has passed 0 and is running the same length again
+   in the minus, shown in the warning red until it hard-stops. */
+body.overtime .time-display { color: var(--red); }
+body.overtime .time-label { color: var(--red); }
 .active-pill {
   display: flex; align-items: center; gap: 10px;
   background: transparent;
@@ -2193,6 +2197,7 @@ function switchTab(name, el) {
 // ── TIMER ──
 function setMode(m, el) {
   if (running) return;
+  document.body.classList.remove('overtime');
   mode = m;
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
@@ -2215,7 +2220,9 @@ function toggleTimer() {
 
 function startTimer() {
   if (running) return;
-  if (remaining <= 0) return;
+  // Focus runs into overtime down to -totalSec; only block once fully exhausted.
+  const floor = (mode === 'focus') ? -totalSec : 0;
+  if (remaining <= floor) return;
   elapsedSecs = 0;
   running = true;
   tickAnchorMs = Date.now();
@@ -2254,9 +2261,14 @@ function tick() {
   // Derive remaining from wall-clock so backgrounded tabs / sleep / iOS suspension
   // don't cause drift — delta may be >1 if we've been frozen.
   const elapsedSinceAnchor = Math.floor((Date.now() - tickAnchorMs) / 1000);
-  const newRemaining = Math.max(0, tickAnchorRemaining - elapsedSinceAnchor);
+  // Focus keeps running past 0 into "overtime" (negative) down to -totalSec, so
+  // the session can run the same length again before it hard-stops. Breaks floor at 0.
+  const isFocus = (mode === 'focus');
+  const floor = isFocus ? -totalSec : 0;
+  const newRemaining = Math.max(floor, tickAnchorRemaining - elapsedSinceAnchor);
   const delta = remaining - newRemaining;
   if (delta <= 0) return; // sub-second tick, nothing to do
+  const crossedTarget = remaining > 0 && newRemaining <= 0; // hit the designated time this tick
   remaining = newRemaining;
   elapsedSecs += delta;
 
@@ -2286,21 +2298,33 @@ function tick() {
   updateTopBar();
   renderActiveTime();
 
-  if (remaining <= 0) {
-    pauseTimer(); // pauseTimer calls flushElapsed for any leftover seconds
+  // Reached the designated time: count the session and chime. Focus keeps
+  // running into overtime instead of stopping; a break stops here (floor 0).
+  if (crossedTarget) {
     if (activeTask) {
       activeTask.sessions = (activeTask.sessions || 0) + 1;
     }
+    if (isFocus) document.body.classList.add('overtime');
     updateStats();
     renderTasks();
     playSound('finish');
     saveAll();
     renderDots();
   }
+
+  // Hard stop: focus overtime has run the same length again (remaining == -totalSec),
+  // or a break reached 0.
+  if (remaining <= floor) {
+    pauseTimer(); // pauseTimer calls flushElapsed for any leftover seconds
+    document.body.classList.remove('overtime');
+    if (isFocus && !crossedTarget) playSound('finish'); // overtime-end chime (skip if we just chimed)
+    renderDots();
+  }
 }
 
 function resetTimer() {
   pauseTimer();
+  document.body.classList.remove('overtime');
   remaining = totalSec;
   elapsedSecs = 0;
   updateDisplay(); updateRing(); updateTopBar();
@@ -2308,15 +2332,22 @@ function resetTimer() {
 
 function skipSession() {
   pauseTimer();
+  document.body.classList.remove('overtime');
   remaining = 0;
   elapsedSecs = 0;
   updateDisplay(); updateRing(); updateTopBar();
 }
 
 function updateDisplay() {
-  const m = String(Math.floor(remaining/60)).padStart(2,'0');
-  const s = String(remaining%60).padStart(2,'0');
-  document.getElementById('timeDisp').textContent = m+':'+s;
+  // remaining can go negative in focus "overtime" — count past 0 into the minus,
+  // shown as -MM:SS, until it has run the same length again (hard stop).
+  const neg = remaining < 0;
+  const abs = Math.abs(remaining);
+  const m = String(Math.floor(abs/60)).padStart(2,'0');
+  const s = String(abs%60).padStart(2,'0');
+  document.getElementById('timeDisp').textContent = (neg ? '-' : '') + m + ':' + s;
+  const label = document.getElementById('modeLabel');
+  if (label) label.textContent = neg ? 'Overtime' : (MODES[mode] ? MODES[mode].label : '');
 }
 function updateRing() {
   renderClock();
@@ -2327,16 +2358,22 @@ function renderClock() {
   const W = 220, CX = 110, CY = 110;
   const OUTER = 104, INNER_LONG = 94, INNER_SHORT = 98;
   const ARC_R = 86;
-  const pct = totalSec > 1 ? remaining / totalSec : 0;
+  // In overtime (remaining < 0) the ring drains a second time toward the hard
+  // stop — |remaining| climbs 0→totalSec, so the bar empties full→0 again.
+  const inOvertime = remaining < 0;
+  const pct = inOvertime ? (totalSec - Math.abs(remaining)) / totalSec
+                         : (totalSec > 1 ? remaining / totalSec : 0);
   const isBreak = document.body.classList.contains('break');
   // Read the live theme tokens so the ring follows light/dark + the vintage accent.
   const css = getComputedStyle(document.body);
   const accent = css.getPropertyValue('--accent').trim() || '#c66a52';
   const blue   = css.getPropertyValue('--blue').trim() || '#6a7e96';
-  const strokeColor = isBreak ? blue : accent;
-  const glowColor   = isBreak ? (css.getPropertyValue('--blue-soft').trim() || 'rgba(106,126,150,0.3)')
-                              : (css.getPropertyValue('--accent-glow').trim() || 'rgba(198,106,82,0.3)');
-  const tickActive  = isBreak ? blue : accent;
+  const red    = css.getPropertyValue('--red').trim() || '#c0563f';
+  const strokeColor = inOvertime ? red : (isBreak ? blue : accent);
+  const glowColor   = inOvertime ? 'rgba(192,57,43,0.35)'
+                              : (isBreak ? (css.getPropertyValue('--blue-soft').trim() || 'rgba(106,126,150,0.3)')
+                              : (css.getPropertyValue('--accent-glow').trim() || 'rgba(198,106,82,0.3)'));
+  const tickActive  = inOvertime ? red : (isBreak ? blue : accent);
   const tickDim     = document.body.classList.contains('light') ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.08)';
 
   const TOTAL_TICKS = 60;
@@ -2378,7 +2415,7 @@ function renderClock() {
   svg.innerHTML = html;
 }
 function updateTopBar() {
-  document.getElementById('topBar').style.width = ((remaining/totalSec)*100)+'%';
+  document.getElementById('topBar').style.width = (Math.max(0, remaining/totalSec)*100)+'%';
 }
 function renderDots() {
   const c = document.getElementById('sessionDots');
