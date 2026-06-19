@@ -11,6 +11,10 @@ redesign-*.png
 mobile-*.png
 m3-*.jpeg
 
+# Local backups of the single-file app (not for the repo)
+index.backup.html
+*.backup.html
+
 # Internal planning notes (kept local — not for the public repo)
 docs/COMMERCIALIZATION-ROADMAP.md
 docs/RECOMMENDATIONS.md
