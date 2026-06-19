@@ -21,7 +21,7 @@ Most productivity apps are built for brains that already remember things. Focus 
 ## Two views, one brain
 
 ### ≡ List — for execution
-A classic, fast task list: color-coded categories with time roll-ups, quick-time chips (1m–1h), per-task notes, drag to reorder (finger or mouse), one-tap start. A built-in Pomodoro timer (25/5/15) with session dots, sounds, and a Focus Mode that hides everything but the task at hand. Even the motivational banner is yours — **rewrite it and restyle the font, size, and color** so it speaks in your voice.
+A classic, fast task list: color-coded categories with time roll-ups, quick-time chips (1m–1h), per-task notes, drag to reorder (finger or mouse), one-tap start. A built-in Pomodoro timer (25/5/15) with session dots, sounds, and a Focus Mode that hides everything but the task at hand. A three-card glance keeps the day honest — **Focused** (minutes today), **Remaining** (time still on the list), and **Done** (tasks completed).
 
 ### ⛰ Map — for thinking
 The **Mountain Board**: every task is an etched line-art peak. Size = time. Left-to-right = duration along an hour ruler. Up = priority. Categories are mountain *ranges* with serif territory names, like an old cartographer drew your day. The map **fills your whole screen, edge to edge** — no wasted margins — and re-fits when you resize or rotate.
