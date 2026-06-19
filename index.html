@@ -1202,8 +1202,31 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   .map-zoom-btn { width: 44px; height: 44px; font-size: 24px; }
   .map-hud { font-size: 13px; padding: 8px 14px; gap: 10px; top: 8px; }
 
-  .task-card { padding: 10px 11px; gap: 9px; }
-  .task-name { font-size: 13px; }
+  /* Two-row layout: the title gets a full-width row of its own instead of
+     fighting the action cluster for horizontal space (which crushed titles
+     to a few characters). Controls drop to a second row, right-aligned. */
+  .task-card {
+    display: grid;
+    grid-template-columns: auto auto auto 1fr;
+    grid-template-areas:
+      "handle mit check name"
+      "right  right right right";
+    align-items: center;
+    column-gap: 9px; row-gap: 9px;
+    padding: 11px 13px;
+  }
+  .task-card > .drag-handle { grid-area: handle; }
+  .task-card > .btn-mit     { grid-area: mit; }
+  .task-card > .check-wrap  { grid-area: check; }
+  .task-card > .task-info   { grid-area: name; min-width: 0; }
+  .task-card > .task-right  { grid-area: right; width: 100%; justify-content: flex-end; }
+  /* Now that the title owns a full row, let it use up to two lines before
+     ellipsing instead of truncating mid-word. */
+  .task-name {
+    font-size: 14px; white-space: normal;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; text-overflow: ellipsis;
+  }
   .time-badge { padding: 3px 8px; font-size: 11px; }
   .btn-start-task { width: 28px; height: 28px; }
   .btn-del, .btn-edit { width: 28px; height: 28px; opacity: 1; padding: 4px; font-size: 13px; }
@@ -1448,8 +1471,13 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
     padding: 12px 14px;
     border-right: 1px solid var(--border); border-bottom: none;
   }
-  /* Compact the timer so the column fits a short screen without much scrolling. */
+  /* Compact the timer so the column fits a short screen without much scrolling.
+     The inner SVG must shrink with the wrapper — otherwise it keeps its base
+     220px size, overflows the 150px box, and the centred "25:00" no longer
+     lines up with the tick ring (and the overflow spills onto the task pill). */
   .ring-wrap { width: 150px; height: 150px; margin-bottom: 10px; }
+  .ring-wrap svg { width: 150px; height: 150px; }
+  .time-display { font-size: 30px; }
   .app-logo { margin-bottom: 10px; }
   .mode-row { margin-bottom: 10px; }
   .timer-section { margin-bottom: 10px; }
@@ -1461,6 +1489,28 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   .quick-times { display: none; }
   .tasks-pane { padding-top: 12px; }
   .map-wrap { flex: 1; height: auto; min-height: 0; }
+
+  /* Same two-row card as portrait: the title owns a full-width row instead of
+     being crushed by the action cluster in the narrow task column. */
+  .task-card {
+    display: grid;
+    grid-template-columns: auto auto auto 1fr;
+    grid-template-areas:
+      "handle mit check name"
+      "right  right right right";
+    align-items: center;
+    column-gap: 9px; row-gap: 8px;
+  }
+  .task-card > .drag-handle { grid-area: handle; }
+  .task-card > .btn-mit     { grid-area: mit; }
+  .task-card > .check-wrap  { grid-area: check; }
+  .task-card > .task-info   { grid-area: name; min-width: 0; }
+  .task-card > .task-right  { grid-area: right; width: 100%; justify-content: flex-end; }
+  .task-name {
+    white-space: normal;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; text-overflow: ellipsis;
+  }
 
   /* Map view → full screen: drop the timer panel, the top tab bar, the title
      and the bulky buttons/add-row. Keep just the List/Map toggle + Guides so
