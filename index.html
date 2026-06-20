@@ -5313,7 +5313,7 @@ window.Sanctuary = (function () {
       var nm = t ? t.name : 'task';
       var now = (i === start);
       var lbl = now ? 'NOW' : (i === start + 1 ? 'NEXT' : 'THEN');
-      html += '<div class="sx-q ' + (now ? 'q-now' : '') + '"><span class="q-lbl">' + lbl + '</span><span class="q-name">' + nm + '</span></div>';
+      html += '<div class="sx-q ' + (now ? 'q-now' : '') + '"><span class="q-lbl">' + lbl + '</span><span class="q-name">' + esc(nm) + '</span></div>';
     }
     html += '<div class="sx-q q-count">' + Math.min(run.idx + 1, run.ids.length) + ' / ' + run.ids.length + '</div>';
     strip.innerHTML = html;
@@ -5325,6 +5325,8 @@ window.Sanctuary = (function () {
     sync();
   }
   function startBreak() {
+    // No break after the final task — go straight to the run-complete screen.
+    if (run.idx >= run.ids.length - 1) { advanceRun(); return; }
     run.phase = 'break';
     var isLong = run.breakMode === 'long';
     if (running) pauseTimer();
@@ -5424,7 +5426,7 @@ window.Sanctuary = (function () {
     open() { open = true; endMode = null; lastName = ''; $('sanctuary').classList.add('open'); $('sanctuary').setAttribute('aria-hidden', 'false'); muteBtn(); sync(); if (running) playMusic(); },
     close() { if (run) { run = null; if (running) pauseTimer(); document.body.classList.remove('break'); } open = false; endMode = null; stopMusic(); const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
     startRun(ids, breaks) {
-      run = { ids: ids.slice(), idx: 0, breakMode: breaks || 'short', focusCount: 0, phase: 'focus' };
+      run = { ids: ids.slice(), idx: 0, breakMode: breaks || 'short', phase: 'focus' };
       open = true; endMode = null; lastName = '';
       $('sanctuary').classList.add('open'); $('sanctuary').setAttribute('aria-hidden', 'false');
       muteBtn();
@@ -5437,7 +5439,6 @@ window.Sanctuary = (function () {
       if (run.phase === 'break') { advanceRun(); return; }
       var id = run.ids[run.idx];
       try { if (typeof toggleDone === 'function') toggleDone(id); } catch (e) {}
-      run.focusCount++;
       if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun();
     },
     endRun() { run = null; if (running) pauseTimer(); stopMusic(); document.body.classList.remove('break'); open = false; const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
@@ -5448,7 +5449,7 @@ window.Sanctuary = (function () {
       if (!open) return;
       if (run) {
         if (running) pauseTimer();
-        if (run.phase === 'focus') { run.focusCount++; if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun(); }
+        if (run.phase === 'focus') { if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun(); }
         else if (run.phase === 'break') { advanceRun(); }
         return;
       }
