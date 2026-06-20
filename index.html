@@ -5358,8 +5358,9 @@ window.Sanctuary = (function () {
       $('sxStarSub').style.display = 'block'; $('sxStarSub').textContent = 'DONE';
       $('sxTask').textContent = 'Run complete';
       $('sxEnd').style.display = 'flex';
-      $('sxEndTitle').textContent = run.ids.length + (run.ids.length === 1 ? ' mountain climbed.' : ' mountains climbed.');
-      $('sxEndSub').textContent = 'Well run.';
+      var climbed = run.completed;
+      $('sxEndTitle').textContent = climbed + (climbed === 1 ? ' mountain climbed.' : ' mountains climbed.');
+      $('sxEndSub').textContent = climbed ? 'Well run.' : 'Nothing logged this run.';
       $('sxMeta').style.display = 'none';
       $('sxControls').style.display = 'none';
       $('sxRunBar').style.display = 'none';
@@ -5426,7 +5427,7 @@ window.Sanctuary = (function () {
     open() { open = true; endMode = null; lastName = ''; $('sanctuary').classList.add('open'); $('sanctuary').setAttribute('aria-hidden', 'false'); muteBtn(); sync(); if (running) playMusic(); },
     close() { if (run) { run = null; if (running) pauseTimer(); document.body.classList.remove('break'); } open = false; endMode = null; stopMusic(); const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
     startRun(ids, breaks) {
-      run = { ids: ids.slice(), idx: 0, breakMode: breaks || 'short', phase: 'focus' };
+      run = { ids: ids.slice(), idx: 0, breakMode: breaks || 'short', phase: 'focus', completed: 0 };
       open = true; endMode = null; lastName = '';
       $('sanctuary').classList.add('open'); $('sanctuary').setAttribute('aria-hidden', 'false');
       muteBtn();
@@ -5439,6 +5440,7 @@ window.Sanctuary = (function () {
       if (run.phase === 'break') { advanceRun(); return; }
       var id = run.ids[run.idx];
       try { if (typeof toggleDone === 'function') toggleDone(id); } catch (e) {}
+      run.completed++;
       if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun();
     },
     endRun() { run = null; if (running) pauseTimer(); stopMusic(); document.body.classList.remove('break'); open = false; const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
@@ -5449,7 +5451,15 @@ window.Sanctuary = (function () {
       if (!open) return;
       if (run) {
         if (running) pauseTimer();
-        if (run.phase === 'focus') { if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun(); }
+        if (run.phase === 'focus') {
+          // Timer elapsed (incl. overtime) — treat as completed so the work is
+          // logged to history, same as the ✓ done action. Otherwise a run left
+          // to expire naturally records nothing yet claims tasks were climbed.
+          var fid = run.ids[run.idx];
+          try { if (typeof toggleDone === 'function') toggleDone(fid); } catch (e) {}
+          run.completed++;
+          if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun();
+        }
         else if (run.phase === 'break') { advanceRun(); }
         return;
       }
