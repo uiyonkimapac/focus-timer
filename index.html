@@ -595,11 +595,11 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 .task-inp:focus { border-color: var(--accent); }
 .task-inp::placeholder { color: var(--text3); }
 .time-inp {
-  width: 80px; background: var(--surface2);
+  width: 94px; background: var(--surface2);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 9px 8px; font-family: 'DM Mono', monospace;
   font-size: 13px; color: var(--text); outline: none;
-  text-align: center; transition: border-color 0.2s;
+  cursor: pointer; transition: border-color 0.2s;
 }
 .time-inp:focus { border-color: var(--accent); }
 .btn-add {
@@ -1192,7 +1192,7 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
      type on a phone; time / category / Add wrap to the row below. */
   .add-row { flex-wrap: wrap; }
   .task-inp { flex: 1 1 100%; min-width: 0; }
-  .time-inp { width: 74px; flex: 0 0 auto; }
+  .time-inp { width: 102px; flex: 0 0 auto; }
   .cat-inp { flex: 1 1 auto; max-width: none; padding: 9px 6px; }
   .btn-add { flex: 0 0 auto; }
   .cat-header { padding: 5px 8px 5px 4px; }
@@ -1779,20 +1779,23 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
         <div class="add-row">
           <input class="task-inp" id="taskInp" placeholder="Add a new task..." maxlength="100"
             onkeydown="if(event.key==='Enter') addTask()"/>
-          <input class="time-inp" id="taskTime" type="text" value="25m" placeholder="25m"/>
+          <select class="time-inp" id="taskTime" title="Minutes per task" onchange="quickMin = parseInt(this.value) || 25;">
+            <option value="1">1 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="20">20 min</option>
+            <option value="25" selected>25 min</option>
+            <option value="30">30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">1 hr</option>
+            <option value="90">1.5 hr</option>
+            <option value="120">2 hr</option>
+          </select>
           <select class="cat-inp" id="taskCategory" onchange="onCategoryPickerChange()" title="Project / category">
             <option value="">No category</option>
           </select>
           <button class="btn-add" onclick="addTask()">+ Add</button>
-        </div>
-        <div class="quick-times" id="quickTimes">
-          <button class="qt-btn" onclick="setQuickTime(1,this)">1 min</button>
-          <button class="qt-btn" onclick="setQuickTime(5,this)">5 min</button>
-          <button class="qt-btn" onclick="setQuickTime(15,this)">15 min</button>
-          <button class="qt-btn sel" onclick="setQuickTime(25,this)">25 min</button>
-          <button class="qt-btn" onclick="setQuickTime(30,this)">30 min</button>
-          <button class="qt-btn" onclick="setQuickTime(45,this)">45 min</button>
-          <button class="qt-btn" onclick="setQuickTime(60,this)">1 hour</button>
         </div>
       </div>
       <div class="task-scroll" id="taskList" style="padding: 0 28px 20px;"></div>
@@ -2632,9 +2635,8 @@ function addTask(name, mins, source) {
   };
   tasks.push(t);
   if (!name) {
-    // typed manually — clear input but keep the category picker on the same value
+    // typed manually — clear the name but keep the time + category selections
     document.getElementById('taskInp').value = '';
-    document.getElementById('taskTime').value = quickMin+'m';
     // select it and save immediately for single adds
     if (activeId === null) activeId = t.id;
     renderTasks(); updateStats(); renderActivePill(); saveAll();
