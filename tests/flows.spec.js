@@ -190,6 +190,15 @@ test('category headers no longer expose a delete control', async ({ page }) => {
   expect(html).not.toContain('Delete group');
 });
 
+test('REMAINING stat keeps the minutes unit past an hour (6h36m, not 6h36)', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Big', mins: 396 }]);   // 6h 36m of remaining work
+  const overHour = await page.evaluate(() => { updateStats(); return document.getElementById('statRemaining').textContent; });
+  expect(overHour).toBe('6h36m');                         // both units present
+  await page.evaluate(() => { tasks[0].secsRemaining = 45 * 60; });
+  const underHour = await page.evaluate(() => { updateStats(); return document.getElementById('statRemaining').textContent; });
+  expect(underHour).toBe('45m');                          // sub-hour unchanged
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;

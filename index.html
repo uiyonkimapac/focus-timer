@@ -2491,7 +2491,7 @@ function renderDots() {
   }
 }
 function updateStats() {
-  const fmtHM = s => { const m = Math.max(0, Math.round(s/60)); return m>=60 ? Math.floor(m/60)+'<i class="u">h</i>'+String(m%60).padStart(2,'0') : m+'<i class="u">m</i>'; };
+  const fmtHM = s => { const m = Math.max(0, Math.round(s/60)); return m>=60 ? Math.floor(m/60)+'<i class="u">h</i>'+String(m%60).padStart(2,'0')+'<i class="u">m</i>' : m+'<i class="u">m</i>'; };
   const remainSecs = tasks.filter(t=>!t.done).reduce((a,t)=>a+(t.secsRemaining||0),0);
   rollFocusedDay();
   document.getElementById('statFocused').innerHTML = fmtHM(minsFocusedToday*60);
