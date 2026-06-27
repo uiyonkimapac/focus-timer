@@ -288,6 +288,31 @@ test('Run rows are non-selectable (no text-selection box on touch drag)', async 
   expect(us).toBe('none');   // dragging the grip reorders instead of selecting text
 });
 
+test('a category can be deleted from its edit popup (tasks move to Uncategorized)', async ({ page }) => {
+  await page.evaluate(() => { categories.push({ id: 'cz', name: 'Zone', color: '#c66a52' }); });
+  await seedTasks(page, [{ name: 'T1', categoryId: 'cz' }]);
+  const res = await page.evaluate(() => {
+    openCategoryModal();                 // NEW category — no delete control
+    const onCreate = getComputedStyle(document.getElementById('catModalDelete')).display;
+    closeCategoryModal();
+    openCategoryModal('cz');             // EDIT existing — delete offered
+    const onEdit = getComputedStyle(document.getElementById('catModalDelete')).display;
+    window.confirm = () => true;         // accept the delete confirmation
+    deleteCategoryFromModal();
+    return {
+      onCreate, onEdit,
+      catGone: !categories.find(c => c.id === 'cz'),
+      taskReparented: tasks[0].categoryId === null,
+      modalClosed: !document.getElementById('categoryModal').classList.contains('open'),
+    };
+  });
+  expect(res.onCreate).toBe('none');     // create has no delete
+  expect(res.onEdit).not.toBe('none');   // edit offers delete
+  expect(res.catGone).toBe(true);        // category removed
+  expect(res.taskReparented).toBe(true); // its task moved to Uncategorized
+  expect(res.modalClosed).toBe(true);    // modal closed after delete
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;
