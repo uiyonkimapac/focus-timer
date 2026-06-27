@@ -485,18 +485,22 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 .map-peak.is-mit .map-peak-detail { stroke: #e3b341; }
 .map-peak.misted { opacity: 0.32; }
 .map-peak.active .map-peak-body { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 8px var(--accent-glow)); }
-/* Labels on demand (redesign): keep the board calm with many peaks — only the
-   active, MIT, or selected peak is labelled; the rest reveal their name on hover.
-   Pure CSS, so drag / hit-test geometry is untouched. */
-.map-peak-label, .map-peak-mins { opacity: 0; transition: opacity 0.15s; }
+/* Names always legible so the board reads at a glance (it's the planning aid).
+   To keep it from looking clogged, only the NAME is always shown (0.8); the
+   per-peak minutes stay on-demand and appear with the rest on hover / active /
+   MIT / selected. Pure CSS, so drag / hit-test geometry is untouched. */
+.map-peak-label { opacity: 0.8; transition: opacity 0.15s; }
+.map-peak-mins  { opacity: 0;   transition: opacity 0.15s; }
 .map-peak:hover .map-peak-label, .map-peak:hover .map-peak-mins,
 .map-peak.active .map-peak-label, .map-peak.active .map-peak-mins,
 .map-peak.is-mit .map-peak-label, .map-peak.is-mit .map-peak-mins,
 .map-peak.selected .map-peak-label, .map-peak.selected .map-peak-mins { opacity: 1; }
 .map-range-terrain { fill: none; stroke: color-mix(in srgb, var(--cat-color) 50%, var(--map-ink)); stroke-width: 1.5; stroke-dasharray: 2 11; opacity: 0.38; pointer-events: none; }
 @media (pointer: coarse) {
-  /* No hover on touch — show labels (pinch-zoom handles density). */
-  .map-peak-label, .map-peak-mins { opacity: 0.92; }
+  /* No hover on touch — keep names visible (pinch-zoom handles density), but
+     leave the minutes on-demand so the board stays uncluttered. The active /
+     MIT / selected brighten rules above still reveal minutes when relevant. */
+  .map-peak-label { opacity: 0.92; }
 }
 .map-peak-start { cursor: pointer; }
 .map-peak-start circle { fill: var(--accent); stroke: #fff; stroke-width: 1.5; }

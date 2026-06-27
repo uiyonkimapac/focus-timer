@@ -199,6 +199,27 @@ test('REMAINING stat keeps the minutes unit past an hour (6h36m, not 6h36)', asy
   expect(underHour).toBe('45m');                          // sub-hour unchanged
 });
 
+test('Map peak names are visible at rest (not hidden until hover)', async ({ page }) => {
+  // Regression: the "labels on demand" redesign set idle peak labels to
+  // opacity:0, so on desktop the board showed unlabeled mountains — names only
+  // appeared on hover. The map is the at-a-glance planning aid, so idle labels
+  // must stay readable. Pick a peak with no active/MIT/selected class so the
+  // brighten-to-full rules can't mask the regression.
+  await seedTasks(page, [{ name: 'Alpha' }, { name: 'Beta' }, { name: 'Gamma' }]);
+  const idleOpacity = await page.evaluate(() => {
+    setViewMode('map');
+    const peaks = [...document.querySelectorAll('#mapSvg .map-peak')];
+    const idle = peaks.find(p =>
+      !p.classList.contains('active') &&
+      !p.classList.contains('is-mit') &&
+      !p.classList.contains('selected'));
+    const label = idle && idle.querySelector('.map-peak-label');
+    return label ? Number(getComputedStyle(label).opacity) : null;
+  });
+  expect(idleOpacity).not.toBeNull();
+  expect(idleOpacity).toBeGreaterThan(0.1);   // was 0 (invisible) before the fix
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;
