@@ -3708,7 +3708,7 @@ function onMapPointerDown(e) {
     mapPinch = { prevDist: pi.dist, prevMidX: pi.midX, prevMidY: pi.midY };
     return;
   }
-  if (e.button != null && e.button !== 0) return;
+  if (e.button != null && e.button !== 0 && e.button !== 1) return; // allow middle (pan)
   const closest = (sel) => e.target.closest && e.target.closest(sel);
   // Apex controls (inside the peak <g>) take priority over dragging.
   const startCtl = closest('.map-peak-start');
@@ -3721,6 +3721,14 @@ function onMapPointerDown(e) {
   if (!ctm) return;
   const startVB = clientToVB(e.clientX, e.clientY, svg, ctm);
   const common = { ctm, startVB, pointerId: e.pointerId, moved: false, startClientX: e.clientX, startClientY: e.clientY, t0: performance.now() };
+
+  // Middle-mouse drag pans anywhere (Ctrl/⌘ now drives selection, not panning).
+  if (e.button === 1) {
+    e.preventDefault();
+    mapDrag = Object.assign({ kind: 'pan', panStartView: { ...mapView } }, common);
+    try { svg.setPointerCapture(e.pointerId); } catch(_) {}
+    return;
+  }
 
   // A peak (on top) → peak drag. Otherwise a range area (marker/hull) → range drag/rename.
   const g = closest('.map-peak');
@@ -3744,14 +3752,16 @@ function onMapPointerDown(e) {
     try { svg.setPointerCapture(e.pointerId); } catch(_) {}
     return;
   }
-  // Empty space → rubber-band multi-select; Ctrl/⌘+drag → pan the map.
-  // On TOUCH a one-finger empty drag pans instead (marquee is desktop-only).
-  if (e.ctrlKey || e.metaKey || e.pointerType === 'touch') {
+  // Empty space → rubber-band select. Hold Ctrl/⌘/Shift to ADD the boxed peaks
+  // to the current selection (otherwise the box replaces it), so you can gather
+  // scattered tasks across several drags. Touch one-finger pans; desktop pans
+  // with the middle mouse button.
+  if (e.pointerType === 'touch') {
     e.preventDefault();
     mapDrag = Object.assign({ kind: 'pan', panStartView: { ...mapView } }, common);
-    if (e.pointerType === 'touch') armMapLongPress(mapDrag, null);
+    armMapLongPress(mapDrag, null);
   } else {
-    mapDrag = Object.assign({ kind: 'marquee' }, common);
+    mapDrag = Object.assign({ kind: 'marquee', additive: (e.ctrlKey || e.metaKey || e.shiftKey) }, common);
   }
   try { svg.setPointerCapture(e.pointerId); } catch(_) {}
 }
@@ -3826,7 +3836,9 @@ function onMapPointerMove(e) {
     if (!rect) { rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); rect.setAttribute('class', 'map-marquee'); svg.appendChild(rect); }
     rect.setAttribute('x', x.toFixed(1)); rect.setAttribute('y', y.toFixed(1));
     rect.setAttribute('width', w.toFixed(1)); rect.setAttribute('height', h.toFixed(1));
-    showHud(peaksInBox(x, y, x + w, y + h), 'Selecting');
+    const boxIds = peaksInBox(x, y, x + w, y + h);
+    const live = mapDrag.additive ? [...new Set([...mapSelection, ...boxIds])] : boxIds;
+    showHud(live, 'Selecting');
     return;
   }
 
@@ -3914,7 +3926,13 @@ function onMapPointerUp(e) {
   // On touch, a held tap on empty space = long-press → add a peak there. ──
   if (d.kind === 'pan') {
     if (heldLongPress(d, e)) { mapAddPeakAt(d.startVB.x, d.startVB.y, e.clientX, e.clientY); return; }
-    if (!d.moved && mapSelection.size) { mapSelection.clear(); renderMap(); }
+    // Tap empty map = deselect: clear any multi-selection and the active peak
+    // (but never yank a task whose timer is actually running).
+    if (!d.moved) {
+      if (mapSelection.size) mapSelection.clear();
+      if (activeId != null && !running) setActive(null);
+      renderMap();
+    }
     return;
   }
 
@@ -3924,10 +3942,21 @@ function onMapPointerUp(e) {
   // ── MARQUEE: click empty → clear selection; drag → select peaks in the box. ──
   if (d.kind === 'marquee') {
     const rect = svg.querySelector('.map-marquee'); if (rect) rect.remove();
-    if (!d.moved) { mapSelection.clear(); hideHud(); renderMap(); return; }
+    // No-move click: a plain click clears the selection AND the active peak
+    // (but never yanks a running task); an additive click (Ctrl/⌘/Shift) is a
+    // no-op so it never wipes what you've already gathered.
+    if (!d.moved) {
+      if (!d.additive) {
+        mapSelection.clear(); hideHud();
+        if (activeId != null && !running) setActive(null);
+      }
+      renderMap(); return;
+    }
     const x1 = Math.min(d.startVB.x, cur.x), y1 = Math.min(d.startVB.y, cur.y);
     const x2 = Math.max(d.startVB.x, cur.x), y2 = Math.max(d.startVB.y, cur.y);
-    mapSelection = new Set(peaksInBox(x1, y1, x2, y2));
+    const boxed = peaksInBox(x1, y1, x2, y2);
+    if (d.additive) boxed.forEach(id => mapSelection.add(id)); // add to the gathered set
+    else mapSelection = new Set(boxed);
     renderMap();
     return;
   }

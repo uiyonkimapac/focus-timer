@@ -122,6 +122,66 @@ test('Run rows show a category-name kicker (categorized only)', async ({ page })
   expect(res.looseHasKicker).toBe(false);          // uncategorized stays single-line
 });
 
+test('clicking empty map space deselects the active task', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Alpha' }, { name: 'Beta' }]);
+  const result = await page.evaluate(() => {
+    setViewMode('map');
+    selectTask(tasks[0].id);            // pick a peak → it becomes the active task
+    const before = activeId;
+    // Synthesize an empty-space click on the map background (target = svg root,
+    // so it's classified as a marquee/pan no-move click, never a peak).
+    const svg = document.getElementById('mapSvg');
+    const r = svg.getBoundingClientRect();
+    const opts = { clientX: r.left + 4, clientY: r.top + 4, pointerId: 1, button: 0, bubbles: true, pointerType: 'mouse' };
+    svg.dispatchEvent(new PointerEvent('pointerdown', opts));
+    svg.dispatchEvent(new PointerEvent('pointerup', opts));
+    return { before, after: activeId };
+  });
+  expect(result.before).not.toBeNull();   // a task was selected
+  expect(result.after).toBeNull();        // empty click cleared it
+});
+
+test('a running timer is NOT deselected by an empty map click', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Alpha' }]);
+  const result = await page.evaluate(() => {
+    setViewMode('map');
+    selectTask(tasks[0].id);
+    startTimer();                         // now running on the active task
+    const svg = document.getElementById('mapSvg');
+    const r = svg.getBoundingClientRect();
+    const opts = { clientX: r.left + 4, clientY: r.top + 4, pointerId: 1, button: 0, bubbles: true, pointerType: 'mouse' };
+    svg.dispatchEvent(new PointerEvent('pointerdown', opts));
+    svg.dispatchEvent(new PointerEvent('pointerup', opts));
+    const out = { active: activeId, running };
+    if (running) { clearInterval(ticker); running = false; }  // don't leak a ticker
+    return out;
+  });
+  expect(result.running).toBe(true);
+  expect(result.active).not.toBeNull();   // the live task stayed selected
+});
+
+test('Ctrl+drag ADDS boxed peaks to the selection instead of replacing it', async ({ page }) => {
+  await seedTasks(page, [{ name: 'TopLeft' }, { name: 'BottomRight' }]);
+  const res = await page.evaluate(() => {
+    setViewMode('map');
+    tasks[0].mapX = 0.10; tasks[0].mapY = 0.12;   // A — outside the box we'll draw
+    tasks[1].mapX = 0.85; tasks[1].mapY = 0.80;   // B — inside it
+    mapSelection = new Set([tasks[0].id]);          // A is already gathered
+    renderMap();
+    const svg = document.getElementById('mapSvg');
+    const r = svg.getBoundingClientRect();
+    const base = { pointerId: 1, button: 0, ctrlKey: true, bubbles: true, pointerType: 'mouse' };
+    const from = Object.assign({ clientX: r.left + r.width * 0.40, clientY: r.top + r.height * 0.05 }, base);
+    const to   = Object.assign({ clientX: r.left + r.width * 0.99, clientY: r.top + r.height * 0.95 }, base);
+    svg.dispatchEvent(new PointerEvent('pointerdown', from));
+    svg.dispatchEvent(new PointerEvent('pointermove', to));
+    svg.dispatchEvent(new PointerEvent('pointerup', to));
+    return { ids: [...mapSelection], a: tasks[0].id, b: tasks[1].id };
+  });
+  expect(res.ids).toContain(res.a);   // pre-gathered peak survived (additive, not replace)
+  expect(res.ids).toContain(res.b);   // boxed peak was added
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;
