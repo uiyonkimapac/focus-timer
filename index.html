@@ -5214,9 +5214,65 @@ function openRunSetup() {
 }
 function closeRunSetup() { document.getElementById('runModal').classList.remove('open'); }
 function runToggleInc(id, on) { if (on) delete runExcluded[id]; else runExcluded[id] = true; }
-function runMove(i, dir) {
-  var j = i + dir; if (j < 0 || j >= runSetupOrder.length) return;
-  var a = runSetupOrder, tmp = a[i]; a[i] = a[j]; a[j] = tmp; renderRunSetup();
+// Drag-to-reorder the run queue. Delegated off #runTaskList so it survives the
+// innerHTML rebuild on every renderRunSetup(); works for mouse, touch and pen.
+let runDrag = null;
+function runReorderBind() {
+  var box = document.getElementById('runTaskList');
+  if (!box || box._reorderBound) return;
+  box._reorderBound = true;
+  box.addEventListener('pointerdown', onRunPointerDown);
+  document.addEventListener('pointermove', onRunPointerMove);
+  document.addEventListener('pointerup', onRunPointerUp);
+  document.addEventListener('pointercancel', runReorderCleanup);
+}
+function onRunPointerDown(e) {
+  var grip = e.target.closest && e.target.closest('.run-grip');
+  if (!grip) return; // drag only from the handle — taps on the checkbox still toggle
+  var row = grip.closest('.run-row'); if (!row) return;
+  e.preventDefault();
+  runDrag = { id: Number(row.getAttribute('data-id')), row: row, overEl: null, after: false };
+  row.classList.add('run-dragging');
+}
+function runClearIndicators(box) {
+  box.querySelectorAll('.run-drop-before, .run-drop-after')
+     .forEach(function (r) { r.classList.remove('run-drop-before', 'run-drop-after'); });
+}
+function onRunPointerMove(e) {
+  var d = runDrag; if (!d) return;
+  e.preventDefault();
+  var box = document.getElementById('runTaskList'); if (!box) return;
+  runClearIndicators(box);
+  var rows = [].slice.call(box.querySelectorAll('.run-row'));
+  var over = null, after = false;
+  for (var k = 0; k < rows.length; k++) {
+    var r = rows[k].getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) { over = rows[k]; after = false; break; }
+    over = rows[k]; after = true;
+  }
+  d.overEl = over; d.after = after;
+  if (over) over.classList.add(after ? 'run-drop-after' : 'run-drop-before');
+}
+function onRunPointerUp() {
+  var d = runDrag; if (!d) return;
+  runDrag = null;
+  if (d.row) d.row.classList.remove('run-dragging');
+  if (d.overEl) {
+    var overId = Number(d.overEl.getAttribute('data-id'));
+    if (overId !== d.id) {
+      var from = runSetupOrder.indexOf(d.id);
+      if (from !== -1) runSetupOrder.splice(from, 1);
+      var to = runSetupOrder.indexOf(overId);
+      if (to === -1) to = runSetupOrder.length; else if (d.after) to += 1;
+      runSetupOrder.splice(to, 0, d.id);
+    }
+  }
+  renderRunSetup();
+}
+function runReorderCleanup() {
+  var d = runDrag; runDrag = null;
+  if (d && d.row) d.row.classList.remove('run-dragging');
+  var box = document.getElementById('runTaskList'); if (box) runClearIndicators(box);
 }
 function renderRunSetup() {
   var box = document.getElementById('runTaskList'); if (!box) return;
@@ -5225,15 +5281,21 @@ function renderRunSetup() {
     var t = tasks.find(function (x) { return x.id === id; }); if (!t) return '';
     var cat = t.categoryId ? categories.find(function (c) { return c.id === t.categoryId; }) : null;
     var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:' + (cat ? cat.color : 'var(--text3)') + ';"></span>';
-    return '<div class="run-row">'
+    // Categorized tasks get a small colour-matched category kicker under the
+    // name (full name, no truncation); uncategorized stay a single line.
+    var nameBlock = cat
+      ? '<span class="run-name-wrap"><span class="run-row-name">' + esc(t.name) + '</span>'
+          + '<span class="run-cat-kicker" style="color:' + cat.color + '">' + esc(cat.name) + '</span></span>'
+      : '<span class="run-row-name">' + esc(t.name) + '</span>';
+    return '<div class="run-row" data-id="' + t.id + '">'
       + '<input type="checkbox" class="run-inc" ' + (runExcluded[id] ? '' : 'checked') + ' onchange="runToggleInc(' + t.id + ',this.checked)">'
       + dot
-      + '<span class="run-row-name">' + esc(t.name) + '</span>'
+      + nameBlock
       + '<span class="run-row-time">' + fmtSecs(t.secsRemaining) + '</span>'
-      + '<button class="run-move" onclick="runMove(' + i + ',-1)" title="Move up">↑</button>'
-      + '<button class="run-move" onclick="runMove(' + i + ',1)" title="Move down">↓</button>'
+      + '<span class="run-grip" title="Drag to reorder">⋮⋮</span>'
       + '</div>';
   }).join('');
+  runReorderBind();
 }
 function startRunFromSetup() {
   var ids = runSetupOrder.filter(function (id) { return !runExcluded[id]; });
@@ -5693,11 +5755,18 @@ document.addEventListener('keydown', e => {
   .run-list { max-height:46vh; overflow-y:auto; margin:6px 0; }
   .run-row { display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); }
   .run-row:last-child { border-bottom:none; }
+  .run-row.run-dragging { opacity:0.45; }
+  .run-row.run-drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+  .run-row.run-drop-after  { box-shadow: inset 0 -2px 0 var(--accent); }
   .run-inc { width:16px; height:16px; accent-color:var(--accent); flex:none; cursor:pointer; }
   .run-row-name { flex:1; min-width:0; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .run-name-wrap { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+  .run-name-wrap .run-row-name { flex:none; }
+  .run-cat-kicker { font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase; line-height:1.25; opacity:.92; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .run-row-time { font-family:'DM Mono',monospace; font-size:11px; color:var(--text3); flex:none; }
-  .run-move { width:30px; height:30px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text2); cursor:pointer; flex:none; font-size:13px; }
-  .run-move:hover { border-color:var(--accent); color:var(--accent); }
+  .run-grip { flex:none; color:var(--text3); font-size:14px; line-height:1; padding:4px 4px; cursor:grab; touch-action:none; user-select:none; }
+  .run-grip:hover { color:var(--accent); }
+  .run-row.run-dragging .run-grip, .run-grip:active { cursor:grabbing; }
   .run-seg { display:inline-flex; border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
   .run-seg-btn { padding:6px 13px; background:transparent; border:none; border-left:1px solid var(--border2); color:var(--text2); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; }
   .run-seg-btn:first-child { border-left:none; }
