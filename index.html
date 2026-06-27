@@ -426,6 +426,15 @@ body.map-mode .quick-times { display: none; }
 /* Full map mode: drop the left panel (timer/motivation/etc) so the map owns the
    whole window. Only ever active in Map view (toggled off when leaving it). */
 body.full-map .left-panel { display: none; }
+/* …and reclaim the vertical chrome above the board (date header, Tasks/Completed
+   tabs, "Active tasks" title, add-row) so the map fills the window top-to-bottom.
+   The view toolbar stays so Full map / List can be toggled off. .map-wrap is
+   flex:1, so hiding these grows it automatically. */
+body.full-map .panel-meta,
+body.full-map .tab-nav,
+body.full-map .panel-title,
+body.full-map .add-row,
+body.full-map .add-toggle { display: none; }
 body.map-mode .tasks-pane { padding-bottom: 8px; }
 body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 #mapSvg { width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }

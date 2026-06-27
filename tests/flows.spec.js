@@ -313,6 +313,23 @@ test('a category can be deleted from its edit popup (tasks move to Uncategorized
   expect(res.modalClosed).toBe(true);    // modal closed after delete
 });
 
+test('Full map mode hides the chrome above the board to maximize the map', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A' }]);
+  const res = await page.evaluate(() => {
+    setViewMode('map');
+    fullMap = true; renderTasks();
+    const disp = sel => getComputedStyle(document.querySelector(sel)).display;
+    const out = { meta: disp('.panel-meta'), tabs: disp('.tab-nav'),
+                  addRow: disp('.add-row'), toolbar: disp('.view-seg') };
+    fullMap = false; setViewMode('list'); renderTasks();
+    return out;
+  });
+  expect(res.meta).toBe('none');        // date header hidden
+  expect(res.tabs).toBe('none');        // Tasks/Completed + Reset/Save hidden
+  expect(res.addRow).toBe('none');      // add-row hidden
+  expect(res.toolbar).not.toBe('none'); // view toolbar stays (toggle back out)
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;
