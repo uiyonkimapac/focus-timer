@@ -276,6 +276,18 @@ test('Reset Data moves off the top row on mobile, stays top-right on desktop', a
   expect(desktop.bottom).toBe('none');    // and no bottom one
 });
 
+test('Run rows are non-selectable (no text-selection box on touch drag)', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A' }, { name: 'B' }]);
+  const us = await page.evaluate(() => {
+    openRunSetup();
+    const s = getComputedStyle(document.querySelector('#runTaskList .run-row'));
+    const val = s.userSelect || s.webkitUserSelect;
+    closeRunSetup();
+    return val;
+  });
+  expect(us).toBe('none');   // dragging the grip reorders instead of selecting text
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;
