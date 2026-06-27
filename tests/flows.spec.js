@@ -182,6 +182,14 @@ test('Ctrl+drag ADDS boxed peaks to the selection instead of replacing it', asyn
   expect(res.ids).toContain(res.b);   // boxed peak was added
 });
 
+test('category headers no longer expose a delete control', async ({ page }) => {
+  const html = await page.evaluate(() =>
+    renderCategoryHeader('cat-x', 'Kagoshima', '#c66a52', [], false, false));
+  expect(html).toContain('renameCategory');   // rename still available
+  expect(html).not.toContain('deleteCategory'); // delete control removed
+  expect(html).not.toContain('Delete group');
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;

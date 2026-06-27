@@ -3106,7 +3106,6 @@ function renderCategoryHeader(id, name, color, taskList, collapsed, isUncategori
   const dot = `<span class="cat-dot" style="background:${color}" title="${dotTitle}" ${dotOnClick}></span>`;
   const actions = isUncategorized ? '' : `
     <button class="btn-edit" onclick="event.stopPropagation();renameCategory('${id}')" title="Rename group">✎</button>
-    <button class="btn-del" onclick="event.stopPropagation();deleteCategory('${id}')" title="Delete group">✕</button>
   `;
   // Real categories are draggable so the user can reorder lanes.
   // Uncategorized stays anchored at the bottom. (Mouse only — touch devices
