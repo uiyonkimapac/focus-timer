@@ -590,6 +590,10 @@ body.light {
 }
 body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
+/* Mobile-only affordances (hidden on desktop): a collapsed add-task launcher
+   and a recessive bottom-of-list reset. The mobile media query reveals them. */
+.add-toggle { display: none; }
+.mobile-reset { display: none; }
 .task-inp {
   flex: 1; background: var(--surface2);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -1199,6 +1203,39 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   .time-inp { width: 102px; flex: 0 0 auto; }
   .cat-inp { flex: 1 1 auto; max-width: none; padding: 9px 6px; }
   .btn-add { flex: 0 0 auto; }
+
+  /* Shrink the oversized mono date header so the task list sits higher up.
+     Scoped via .main-area to outrank the base .panel-meta rule, which is
+     defined LATER in the sheet (so a bare .panel-meta override would lose). */
+  .main-area .panel-meta { font-size: 13px; padding: 12px 14px 2px; gap: 8px; flex-wrap: wrap; line-height: 1.3; }
+  .main-area .panel-meta .meta-sep { font-size: 13px; }
+
+  /* Collapse the add-task form behind a launcher so the list is the first
+     thing you see; "+ Add a task" reveals (and focuses) the composer. */
+  .add-toggle {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; margin-bottom: 12px; padding: 13px;
+    border: 1px dashed var(--border2); border-radius: var(--radius-sm);
+    background: var(--surface2); color: var(--accent);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .add-toggle:active { background: var(--surface3); }
+  .add-row { display: none; }                          /* collapsed by default */
+  body.add-open:not(.map-mode) .add-row { display: flex; }
+  body.add-open .add-toggle { display: none; }
+  body.map-mode .add-toggle { display: none; }
+
+  /* Reset Data leaves the easy-to-mis-tap top row for a recessive button at
+     the very bottom of the list (still confirms before clearing). */
+  .btn-reset-data { display: none; }
+  .mobile-reset {
+    display: block; width: calc(100% - 28px); margin: 6px 14px 48px;
+    padding: 11px; background: transparent;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text3); font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer;
+  }
+  .mobile-reset:active { border-color: var(--red); color: var(--red); }
+  body.map-mode .mobile-reset { display: none; }
   .cat-header { padding: 5px 8px 5px 4px; }
   .cat-name { font-size: 12px; }
   .cat-meta { font-size: 10px; }
@@ -1268,6 +1305,20 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
 
   /* HUD can't outgrow a narrow screen. */
   .map-hud { max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; }
+
+  /* Map view on phones (portrait too — previously only landscape got this):
+     give the map the screen instead of burying it below a scroll. Hide the
+     list-only chrome (date header, Tasks/Completed tabs, "Active tasks" title,
+     the add-row and the bulky buttons). Keep the List/Map toggle, Guides and
+     Full map so you can switch back. */
+  body.map-mode .panel-meta,
+  body.map-mode .tab-nav,
+  body.map-mode .panel-title,
+  body.map-mode .add-row { display: none; }
+  body.map-mode .header-actions .btn-small:not(#btnGuides):not(#btnFullMap),
+  body.map-mode .header-actions .btn-import { display: none; }
+  body.map-mode .tasks-pane { padding-top: 8px; }
+  body.map-mode .map-wrap { height: calc(100dvh - 150px); min-height: 60vh; }
 }
 
 /* ── TOUCH DEVICES (any width — includes tablets wider than 760px) ──
@@ -1780,6 +1831,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
             </button>
           </div>
         </div>
+        <button class="add-toggle" id="addToggle" onclick="openAddRow()">+ Add a task</button>
         <div class="add-row">
           <input class="task-inp" id="taskInp" placeholder="Add a new task..." maxlength="100"
             onkeydown="if(event.key==='Enter') addTask()"/>
@@ -1803,6 +1855,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
         </div>
       </div>
       <div class="task-scroll" id="taskList" style="padding: 0 28px 20px;"></div>
+      <button class="mobile-reset" onclick="resetAllData()" title="Clear all tasks and history">Reset all data</button>
       <div class="map-wrap" id="mapWrap" style="display:none;">
         <svg id="mapSvg" viewBox="0 0 1600 1024" preserveAspectRatio="xMidYMid meet"></svg>
         <div class="map-hud" id="mapHud" style="display:none;"></div>
@@ -2614,6 +2667,13 @@ function parseTime(str) {
   return Math.max(1, Math.min(mins, 480));
 }
 
+// Mobile: reveal the collapsed add-task form and focus it. Stays open so you
+// can add several in a row; map mode hides both the form and this launcher.
+function openAddRow() {
+  document.body.classList.add('add-open');
+  const inp = document.getElementById('taskInp');
+  if (inp) inp.focus();
+}
 function addTask(name, mins, source) {
   const n = name || document.getElementById('taskInp').value.trim();
   if (!n) return;

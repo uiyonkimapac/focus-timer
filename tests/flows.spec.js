@@ -220,6 +220,62 @@ test('Map peak names are visible at rest (not hidden until hover)', async ({ pag
   expect(idleOpacity).toBeGreaterThan(0.1);   // was 0 (invisible) before the fix
 });
 
+test('mobile map view hides the add-task row so the map fills the screen', async ({ page }) => {
+  // Regression: the map-fullscreen rules (hide add-row/tabs/title) were scoped
+  // to landscape-short only, so portrait phones buried the map below the
+  // add-task form. They must apply at the portrait phone breakpoint too.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedTasks(page, [{ name: 'A' }]);
+  const res = await page.evaluate(() => {
+    const addRow = document.querySelector('.add-row');
+    setViewMode('list'); openAddRow();                  // composer is collapsed by default on mobile
+    const inList = getComputedStyle(addRow).display;
+    setViewMode('map');  const inMap  = getComputedStyle(addRow).display;
+    setViewMode('list');
+    return { inList, inMap };
+  });
+  expect(res.inList).not.toBe('none');  // composer visible once opened in list view
+  expect(res.inMap).toBe('none');       // hidden in map view — map gets the screen
+});
+
+test('mobile collapses the add-task form behind a launcher', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedTasks(page, [{ name: 'A' }]);
+  const res = await page.evaluate(() => {
+    document.body.classList.remove('add-open');
+    const addRow = document.querySelector('.add-row');
+    const toggle = document.querySelector('.add-toggle');
+    const collapsed = { row: getComputedStyle(addRow).display, toggle: getComputedStyle(toggle).display };
+    openAddRow();
+    const opened = { row: getComputedStyle(addRow).display, toggle: getComputedStyle(toggle).display,
+                     focused: document.activeElement === document.getElementById('taskInp') };
+    return { collapsed, opened };
+  });
+  expect(res.collapsed.row).toBe('none');      // form hidden by default
+  expect(res.collapsed.toggle).not.toBe('none'); // launcher shown
+  expect(res.opened.row).not.toBe('none');     // tapping reveals the form
+  expect(res.opened.toggle).toBe('none');      // launcher hides
+  expect(res.opened.focused).toBe(true);       // and focuses the input
+});
+
+test('Reset Data moves off the top row on mobile, stays top-right on desktop', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A' }]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await page.evaluate(() => ({
+    top: getComputedStyle(document.querySelector('.btn-reset-data')).display,
+    bottom: getComputedStyle(document.querySelector('.mobile-reset')).display,
+  }));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const desktop = await page.evaluate(() => ({
+    top: getComputedStyle(document.querySelector('.btn-reset-data')).display,
+    bottom: getComputedStyle(document.querySelector('.mobile-reset')).display,
+  }));
+  expect(mobile.top).toBe('none');        // top Reset Data hidden on mobile
+  expect(mobile.bottom).not.toBe('none'); // recessive bottom reset shown
+  expect(desktop.top).not.toBe('none');   // desktop keeps the top-right button
+  expect(desktop.bottom).toBe('none');    // and no bottom one
+});
+
 test('a storage write failure surfaces the "Storage full" toast', async ({ page }) => {
   const open = await page.evaluate(() => {
     const orig = Storage.prototype.setItem;
