@@ -2151,7 +2151,7 @@ function applyRemote(d) {
   try {
     if (Array.isArray(d.tasks))      tasks      = d.tasks;
     if (Array.isArray(d.history))    history    = d.history;
-    if (Array.isArray(d.categories)) categories = d.categories;
+    if (Array.isArray(d.categories)) categories = sanitizeCategories(d.categories);
     if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; minsFocusedToday = d.stats.minsFocusedToday || 0; focusedDay = d.stats.focusedDay || ''; }
     // tasks from older clients may lack categoryId — default to null (Uncategorized)
     tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
@@ -2273,19 +2273,9 @@ function loadAll() {
   });
   tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
 
-  // ── Sanitize: drop categories without id/name; ensure required fields ──
-  const seenCatIds = new Set();
-  categories = categories.filter(c => {
-    if (!c || typeof c.id !== 'string' || !c.name) return false;
-    if (seenCatIds.has(c.id)) return false;
-    seenCatIds.add(c.id);
-    return true;
-  });
-  categories.forEach((c, i) => {
-    if (typeof c.order !== 'number') c.order = i;
-    if (!c.color) c.color = CAT_COLORS[i % CAT_COLORS.length];
-    if (typeof c.collapsed !== 'boolean') c.collapsed = false;
-  });
+  // ── Sanitize: drop categories without id/name; ensure required fields and a
+  // safe colour (the colour is rendered into HTML/SVG attributes unescaped) ──
+  categories = sanitizeCategories(categories);
   // Re-parent any task whose categoryId points to a deleted category
   const validCatIds = new Set(categories.map(c => c.id));
   tasks.forEach(t => { if (t.categoryId && !validCatIds.has(t.categoryId)) t.categoryId = null; });
@@ -5099,7 +5089,41 @@ function dayLabel(ts) {
   if(diff===1) return 'Yesterday';
   return d.toLocaleDateString([],{weekday:'long',month:'short',day:'numeric'});
 }
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Escapes for HTML text AND double/single-quoted attribute contexts. Quotes are
+// escaped too so a value containing " or ' can't break out of an attribute it's
+// interpolated into (e.g. title="…", value="…").
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// Validate a category colour before it reaches an HTML/SVG attribute. Only hex
+// (#rgb…#rrggbbaa) and our own CSS var() tokens are allowed; anything else — e.g. a
+// sync payload trying to break out of style="--cat-color:…" — falls back to a safe
+// palette colour. This is the XSS guard for the realtime-sync ingestion path.
+function safeColor(c, fallback) {
+  fallback = fallback || CAT_COLORS[0];
+  if (typeof c !== 'string') return fallback;
+  c = c.trim();
+  return (/^#[0-9a-fA-F]{3,8}$/.test(c) || /^var\(--[\w-]+\)$/.test(c)) ? c : fallback;
+}
+
+// Shared category sanitizer for BOTH the local load() path and the remote
+// applyRemote() sync path: drops shapeless/duplicate categories and forces a safe
+// colour. Remote sync data is untrusted (anyone who knows a sync code can write the
+// row), so it must pass through the same guard as local data.
+function sanitizeCategories(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Set();
+  const out = [];
+  arr.forEach((c, i) => {
+    if (!c || typeof c.id !== 'string' || !c.name) return;
+    if (seen.has(c.id)) return;
+    seen.add(c.id);
+    if (typeof c.order !== 'number') c.order = i;
+    c.color = safeColor(c.color, CAT_COLORS[i % CAT_COLORS.length]);
+    if (typeof c.collapsed !== 'boolean') c.collapsed = false;
+    out.push(c);
+  });
+  return out;
+}
 
 // ── PHASE 1: DAY HELPERS ──
 function todayKey() { return dayKey(Date.now()); }

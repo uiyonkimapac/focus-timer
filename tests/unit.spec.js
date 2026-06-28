@@ -59,3 +59,43 @@ test('newId is unique, monotonic and integer across a same-tick burst', async ({
   });
   expect(r).toEqual({ unique: true, mono: true, allInt: true });
 });
+
+// Security: category colour reaches HTML/SVG attributes unescaped, and category
+// data can arrive from the untrusted realtime-sync channel. safeColor() must reject
+// anything that isn't a plain hex / var() token so an attribute breakout is impossible.
+test('safeColor only passes hex and var() tokens, neutralizing attribute breakouts', async ({ page }) => {
+  const r = await page.evaluate(() => ({
+    hex3:  safeColor('#abc', '#000'),
+    hex6:  safeColor('#6e8062', '#000'),
+    hex8:  safeColor('#11223344', '#000'),
+    varOk: safeColor('var(--text3)', '#000'),
+    breakout:  safeColor('red" onmouseover="alert(1)', '#000'),
+    tagOut:    safeColor('x"><img src=x onerror=alert(1)>', '#000'),
+    urlExpr:   safeColor('url(javascript:alert(1))', '#000'),
+    nonString: safeColor({}, '#000'),
+    empty:     safeColor('', '#000'),
+  }));
+  expect(r).toEqual({
+    hex3: '#abc', hex6: '#6e8062', hex8: '#11223344', varOk: 'var(--text3)',
+    breakout: '#000', tagOut: '#000', urlExpr: '#000', nonString: '#000', empty: '#000',
+  });
+});
+
+test('sanitizeCategories strips a malicious sync colour back to a safe palette value', async ({ page }) => {
+  const colors = await page.evaluate(() => {
+    const evil = [
+      { id: 'c1', name: 'Work',  color: 'x"><img src=x onerror=alert(document.cookie)>' },
+      { id: 'c2', name: 'Home',  color: '#c0922f' },
+    ];
+    return sanitizeCategories(evil).map(c => c.color);
+  });
+  expect(colors[0]).not.toContain('<');
+  expect(colors[0]).not.toContain('"');
+  expect(colors[0]).toMatch(/^#[0-9a-fA-F]{3,8}$/); // fell back to a palette hex
+  expect(colors[1]).toBe('#c0922f');                 // a valid colour is preserved
+});
+
+test('esc() escapes quotes so attribute-context values cannot break out', async ({ page }) => {
+  const out = await page.evaluate(() => esc(`a"b'c<d>e&f`));
+  expect(out).toBe('a&quot;b&#39;c&lt;d&gt;e&amp;f');
+});
