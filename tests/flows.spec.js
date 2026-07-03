@@ -353,3 +353,123 @@ test('completing a task logs it to history and the count reflects it', async ({ 
   expect(r.hist).toBe(1);
   expect(r.histName).toBe('Write report');
 });
+
+test('tapping a peak opens the time popover; a chip changes mins and persists', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Estimate me', mins: 25 }]);
+  const res = await page.evaluate(() => {
+    setViewMode('map');
+    const g = document.querySelector('#mapSvg .map-peak');
+    const r = g.getBoundingClientRect();
+    // Clean tap: pointerdown + pointerup at the same spot (no movement = not a drag).
+    const o = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1, button: 0, bubbles: true, pointerType: 'mouse' };
+    g.dispatchEvent(new PointerEvent('pointerdown', o));
+    g.dispatchEvent(new PointerEvent('pointerup', o));
+    const pop = document.querySelector('.map-time-pop');
+    const selBefore = pop && pop.querySelector('.map-pop-chip.sel') ? pop.querySelector('.map-pop-chip.sel').textContent : null;
+    const chipCount = pop ? pop.querySelectorAll('.map-pop-chip').length : 0;
+    const chip45 = pop ? [...pop.querySelectorAll('.map-pop-chip')].find(c => c.textContent === '45m') : null;
+    if (chip45) chip45.click();
+    return { open: !!pop, chipCount, selBefore, mins: tasks[0].mins, secs: tasks[0].secsRemaining, role: pop && pop.getAttribute('role') };
+  });
+  expect(res.open).toBe(true);
+  expect(res.role).toBe('dialog');
+  expect(res.chipCount).toBe(11);       // same preset list as the #taskTime dropdown
+  expect(res.selBefore).toBe('25m');    // current value highlighted on open
+  expect(res.mins).toBe(45);            // chip changed the estimate
+  expect(res.secs).toBe(45 * 60);       // remaining clock reset to the new allotment
+  await page.reload();
+  const persisted = await page.evaluate(() => (tasks.find(t => t.name === 'Estimate me') || {}).mins);
+  expect(persisted).toBe(45);           // survived a reload (saveAll persisted it)
+});
+
+test('the map time popover clamps to time already spent and never below 5m', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Half done', mins: 30 }]);
+  const res = await page.evaluate(() => {
+    tasks[0].secsSpent = 12 * 60;       // 12m spent → floor rounds UP to the next 5m = 15m
+    setViewMode('map');
+    const g = document.querySelector('#mapSvg .map-peak');
+    const r = g.getBoundingClientRect();
+    const o = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1, button: 0, bubbles: true, pointerType: 'mouse' };
+    g.dispatchEvent(new PointerEvent('pointerdown', o));
+    g.dispatchEvent(new PointerEvent('pointerup', o));
+    for (let i = 0; i < 10; i++) mapPopStep(-5); // step down hard — must stop at the clamp
+    const pop = document.querySelector('.map-time-pop');
+    const chip10 = [...pop.querySelectorAll('.map-pop-chip')].find(c => c.textContent === '10m');
+    return { mins: tasks[0].mins, secs: tasks[0].secsRemaining, chip10Disabled: chip10.disabled };
+  });
+  expect(res.mins).toBe(15);            // stops at spent-rounded-up, never lower
+  expect(res.secs).toBe(15 * 60);
+  expect(res.chip10Disabled).toBe(true); // sub-floor presets are disabled, not tappable
+});
+
+test('map time popover "Not today" pushes the peak to tomorrow (survives reload)', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Deep work' }, { name: 'Stays' }]);
+  const before = await page.evaluate(() => {
+    setViewMode('map');
+    const id = tasks[0].id;
+    openMapTimePopover(id);
+    const hasAction = !!document.querySelector('.map-pop-action'); // the new action row exists
+    mapPopNotToday();                                              // reuse the list-side rule
+    return {
+      hasAction,
+      popClosed: mapTimePop === null,           // popover dismissed on action
+      hidden: isHiddenToday(tasks[0]),          // task snoozed for today
+      streak: tasks[0].notTodayStreak,          // streak seeded to 1
+      peakIds: [...document.querySelectorAll('#mapSvg .map-peak')].map(el => Number(el.getAttribute('data-task-id'))),
+      id, keepId: tasks[1].id,
+    };
+  });
+  expect(before.hasAction).toBe(true);
+  expect(before.popClosed).toBe(true);
+  expect(before.hidden).toBe(true);
+  expect(before.streak).toBe(1);
+  expect(before.peakIds).not.toContain(before.id);   // peak left the board
+  expect(before.peakIds).toContain(before.keepId);   // the other peak stayed
+
+  // It shows up in the List View's "Not today" section.
+  const listHasSection = await page.evaluate(() => {
+    setViewMode('list'); notTodayCollapsed = false; renderTasks();
+    return !!document.querySelector('.not-today-group');
+  });
+  expect(listHasSection).toBe(true);
+
+  // toggleNotToday persisted via saveAll → the snooze survives a reload.
+  await page.reload();
+  const after = await page.evaluate(() => ({ hidden: isHiddenToday(tasks[0]), streak: tasks[0].notTodayStreak }));
+  expect(after.hidden).toBe(true);
+  expect(after.streak).toBe(1);
+});
+
+test('dragging a peak into the fog bank pushes it to tomorrow and bumps the streak', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Focus' }, { name: 'Keep' }]);
+  const res = await page.evaluate(() => {
+    setViewMode('map');
+    // Simulate a task already snoozed the last two days so this drop earns FACE IT!.
+    tasks[0].notTodayStreak = 2;
+    tasks[0].lastHiddenDayKey = yesterdayKey();
+    const id = tasks[0].id;
+    const svg = document.getElementById('mapSvg');
+    const g = document.querySelector(`#mapSvg .map-peak[data-task-id="${id}"]`);
+    const pr = g.getBoundingClientRect();
+    const base = { pointerId: 1, button: 0, bubbles: true, pointerType: 'mouse' };
+    const start = Object.assign({ clientX: pr.left + pr.width / 2, clientY: pr.top + pr.height / 2 }, base);
+    g.dispatchEvent(new PointerEvent('pointerdown', start));
+    // First move exceeds the drag threshold → reveals + positions the drop zones.
+    svg.dispatchEvent(new PointerEvent('pointermove', Object.assign({}, base, { clientX: start.clientX + 40, clientY: start.clientY + 40 })));
+    // Aim the drop at the centre of the now-positioned fog bank.
+    const fz = document.getElementById('mapNotToday').getBoundingClientRect();
+    const drop = Object.assign({ clientX: fz.left + fz.width / 2, clientY: fz.top + fz.height / 2 }, base);
+    svg.dispatchEvent(new PointerEvent('pointermove', drop));
+    svg.dispatchEvent(new PointerEvent('pointerup', drop));
+    return {
+      hidden: isHiddenToday(tasks[0]),
+      streak: tasks[0].notTodayStreak,           // 2 → 3 (consecutive day)
+      peakIds: [...document.querySelectorAll('#mapSvg .map-peak')].map(el => Number(el.getAttribute('data-task-id'))),
+      id, keepId: tasks[1].id,
+    };
+  });
+  expect(res.hidden).toBe(true);
+  expect(res.streak).toBe(3);                 // streak incremented across a consecutive day
+  expect(res.peakIds).not.toContain(res.id);  // dragged peak left the board
+  expect(res.peakIds).toContain(res.keepId);
+});

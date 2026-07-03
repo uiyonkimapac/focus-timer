@@ -120,3 +120,34 @@ test('sanitizeTasks neutralizes a malicious sync id / categoryId and keeps clean
   expect(out.find(t => t.id === 7).categoryId).toBe('c_123_456');  // safe categoryId preserved
   expect(out.some(t => String(t.categoryId).includes('<'))).toBe(false);
 });
+
+// Map view: the duration ruler auto-fits the day (peaks are placed by their own
+// duration, so content extent = the longest single task) and never below a 2h floor.
+const seedMins = (mins) => mins.map((m, i) => ({ id: 1000 + i, name: 't' + i, mins: m, done: false, categoryId: null }));
+
+test('computeRulerMin fits a light day of short tasks to a 2h ruler', async ({ page }) => {
+  const r = await page.evaluate((tset) => { tasks.length = 0; tasks.push(...tset); return computeRulerMin(); },
+    seedMins([90, 65, 40, 45, 30, 20, 12, 8]));
+  expect(r).toBe(120); // 90-min longest → next whole hour w/ headroom = 2h
+});
+
+test('computeRulerMin floors at 2h for a tiny or empty day', async ({ page }) => {
+  const r = await page.evaluate((tset) => {
+    tasks.length = 0; tasks.push(...tset); const tiny = computeRulerMin();
+    tasks.length = 0; const empty = computeRulerMin();
+    return { tiny, empty };
+  }, seedMins([15]));
+  expect(r).toEqual({ tiny: 120, empty: 120 });
+});
+
+test('computeRulerMin grows so the 8h capacity mark stays on-canvas for a loaded day', async ({ page }) => {
+  const r = await page.evaluate((tset) => {
+    tasks.length = 0; tasks.push(...tset);
+    mapRulerMin = computeRulerMin();
+    return { ruler: mapRulerMin, total: tasks.reduce((s, t) => s + t.mins, 0), x8: autoX(WORKDAY_MIN) };
+  }, seedMins([150, 90, 60, 45, 40, 75, 30, 30, 25]));
+  expect(r.total).toBe(545);              // ~9.08h planned
+  expect(r.ruler).toBe(600);              // snapped up to a 10h ruler
+  expect(r.x8).toBeGreaterThan(0.06);
+  expect(r.x8).toBeLessThan(0.94);        // the 8h mark is on the sheet, not clamped to the edge
+});

@@ -44,6 +44,8 @@
   --map-world-bg: #211c18;
   --map-ink: #cfc9b6;                    /* parchment ink — all line-art strokes */
   --map-peak-shade: rgba(0,0,0,0.32);    /* west-flank relief shading */
+  --map-wash: #b0623f;                   /* hypsometric duration wash — dusty ember (dark) */
+  --map-alpine: #ffffff;                 /* alpine light — value-lift over the summit band */
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -460,6 +462,14 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 .map-axis-arrow { fill: none; stroke: var(--map-ink); opacity: 0.45; stroke-width: 1.5; stroke-linejoin: round; }
 .map-axis-label { fill: var(--text2); font-family: 'DM Mono', monospace; font-size: 18px; }
 .map-axis-cap { fill: var(--map-ink); opacity: 0.6; font-family: 'DM Mono', monospace; font-size: 16px; letter-spacing: 2.5px; }
+/* Hypsometric washes (Guides only) — hand-atlas tinting laid UNDER the linework. */
+.map-wash { pointer-events: none; }
+.map-alpine { pointer-events: none; }
+/* Whisker ticks at the HIGH/MED/LOW priority band boundaries (part of alpine light). */
+.map-whisker { stroke: var(--map-ink); opacity: 0.32; stroke-width: 1; pointer-events: none; }
+/* 8h capacity mark — a hairline budget line + smallcap label, shown when overcommitted. */
+.map-cap-tick { stroke: var(--map-ink); opacity: 0.42; stroke-width: 1; pointer-events: none; }
+.map-cap-label { fill: var(--map-ink); opacity: 0.72; font-family: 'DM Mono', monospace; font-size: 15px; letter-spacing: 3px; paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px; stroke-linejoin: round; }
 /* Range = a small etched ridge silhouette + the territory name in serif caps. */
 .map-range-ridge { fill: var(--cat-color); fill-opacity: 0.07; stroke: var(--cat-color); stroke-width: 2; opacity: 0.9; stroke-linejoin: round; stroke-linecap: round; }
 .map-range-spur { fill: none; stroke: var(--cat-color); stroke-width: 1.1; opacity: 0.5; stroke-linecap: round; }
@@ -542,6 +552,24 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 .map-dropzone.over { border-style: solid; transform: scale(1.08); }
 .map-dz-copy.over  { background: var(--green); color: #fff; }
 .map-dz-trash.over { background: var(--red); color: #fff; }
+/* Fog bank — the "not today" zone. Rendered as cartographic mist (line-art
+   hatching in the map's own ink) rather than a flood-filled action chip, so it
+   reads as part of the map. Dropping a peak here pushes it to tomorrow. */
+.map-dz-nottoday {
+  color: var(--map-ink); border-color: color-mix(in srgb, var(--map-ink) 45%, transparent);
+  background:
+    repeating-linear-gradient(118deg, transparent 0 5px,
+      color-mix(in srgb, var(--map-ink) 13%, transparent) 5px 6px),
+    color-mix(in srgb, var(--map-bg) 90%, transparent);
+}
+.map-dz-nottoday span { font-variant: small-caps; letter-spacing: 1.4px; opacity: 0.85; }
+.map-dz-nottoday.over {
+  border-style: solid;
+  background:
+    repeating-linear-gradient(118deg, transparent 0 4px,
+      color-mix(in srgb, var(--map-ink) 24%, transparent) 4px 6px),
+    color-mix(in srgb, var(--map-bg) 78%, transparent);
+}
 .map-range-label { cursor: pointer; }
 .map-range-marker:hover .map-range-ridge { opacity: 0.95; }
 .map-range-marker:hover .map-range-label { opacity: 1; }
@@ -583,6 +611,66 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
   padding: 6px 10px; font-family: 'DM Sans', sans-serif; font-size: 13px;
   outline: none; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
 }
+/* Peak time popover: tap a single peak to retune its minutes on the map. Etched
+   instrument — map tones, hairline ink border, serif name, mono chips. Rows are
+   stacked so a second action row can join later. */
+.map-time-pop {
+  position: absolute; z-index: 20; width: max-content; max-width: min(340px, calc(100% - 16px));
+  display: flex; flex-direction: column; gap: 9px;
+  background: color-mix(in srgb, var(--map-bg) 95%, transparent);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  border: 1px solid color-mix(in srgb, var(--map-ink) 52%, transparent);
+  border-radius: 10px; padding: 11px 12px 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.42);
+}
+.map-time-pop.docked { left: 8px; right: 8px; width: auto; max-width: none; }
+.map-pop-name {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  font-size: 19px; line-height: 1.1; color: var(--map-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.map-pop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.map-pop-chip {
+  font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.4px;
+  color: var(--map-ink); background: color-mix(in srgb, var(--map-ink) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--map-ink) 28%, transparent);
+  border-radius: 6px; padding: 5px 9px; min-height: 30px; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.map-pop-chip:hover:not(:disabled) { background: color-mix(in srgb, var(--map-ink) 16%, transparent); }
+.map-pop-chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.map-pop-chip:disabled { opacity: 0.3; cursor: default; }
+.map-pop-stepper {
+  justify-content: center; gap: 12px; padding-top: 9px; margin-top: 1px;
+  border-top: 1px solid color-mix(in srgb, var(--map-ink) 16%, transparent);
+}
+.map-pop-step {
+  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600;
+  color: var(--map-ink); background: color-mix(in srgb, var(--map-ink) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--map-ink) 30%, transparent);
+  border-radius: 6px; min-width: 46px; min-height: 32px; cursor: pointer; transition: background 0.12s;
+}
+.map-pop-step:hover { background: color-mix(in srgb, var(--map-ink) 20%, transparent); }
+.map-pop-val {
+  font-family: 'DM Mono', monospace; font-size: 13px; color: var(--map-ink);
+  min-width: 58px; text-align: center; opacity: 0.85;
+}
+/* Action row — a "Not today" verb below the time controls. Same line-art moon
+   and wording as the List View's snooze; separated by a hairline like the stepper. */
+.map-pop-actions {
+  justify-content: center; padding-top: 9px; margin-top: 1px;
+  border-top: 1px solid color-mix(in srgb, var(--map-ink) 16%, transparent);
+}
+.map-pop-action {
+  display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--map-ink);
+  background: color-mix(in srgb, var(--map-ink) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--map-ink) 28%, transparent);
+  border-radius: 6px; min-height: 34px; padding: 6px 12px; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.map-pop-action:hover { background: color-mix(in srgb, var(--map-ink) 16%, transparent); }
+.map-pop-action svg { width: 18px; height: 18px; flex: none; }
 .map-overflow-band { fill: var(--red); opacity: 0.07; }
 .map-overflow-label { fill: var(--red); font-family: 'DM Sans', sans-serif; font-size: 18px; font-weight: 600; opacity: 0.9; paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px; stroke-linejoin: round; }
 /* Subtle pulse on the running peak — motion-gated for accessibility. */
@@ -596,6 +684,8 @@ body.light {
   --map-world-bg: #e4ddc8;
   --map-ink: #4a4334;
   --map-peak-shade: rgba(58,52,38,0.20);
+  --map-wash: #a85a4e;                    /* faded sepia-rose duration wash (light) */
+  --map-alpine: #fffdf6;                  /* warm alpine light (light) */
 }
 body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -1324,6 +1414,12 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   /* HUD can't outgrow a narrow screen. */
   .map-hud { max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; }
 
+  /* Time popover: 44px touch targets on phones. */
+  .map-pop-chip { min-height: 44px; font-size: 13px; padding: 6px 11px; }
+  .map-pop-step { min-height: 44px; min-width: 48px; font-size: 15px; }
+  .map-pop-action { min-height: 44px; font-size: 14px; }
+  .map-pop-name { font-size: 20px; }
+
   /* Map view on phones (portrait too — previously only landscape got this):
      give the map the screen instead of burying it below a scroll. Hide the
      list-only chrome (date header, Tasks/Completed tabs, "Active tasks" title,
@@ -1885,6 +1981,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
         </div>
         <div class="map-dropzone map-dz-copy" id="mapCopy">⧉<span>copy</span></div>
         <div class="map-dropzone map-dz-trash" id="mapTrash">🗑<span>delete</span></div>
+        <div class="map-dropzone map-dz-nottoday" id="mapNotToday">🌙<span>not today</span></div>
       </div>
     </div>
 
@@ -3073,10 +3170,16 @@ function toggleCategoryCollapsed(id) {
   renderTasks();
 }
 
+// The single time-edit rule for BOTH surfaces (list badge + map peak popover):
+// setting a task's minutes resets its remaining clock to the full new allotment.
+// One rule, two callers — do not fork this.
+function applyTaskTime(t, mins) {
+  t.mins = mins; t.secsRemaining = mins * 60;
+}
 function setTaskTime(id, mins) {
   const t = tasks.find(x=>x.id===id);
   if (!t) return;
-  t.mins=mins; t.secsRemaining=mins*60;
+  applyTaskTime(t, mins);
   renderTasks(); if(activeId===id) renderActivePill(); saveAll();
 }
 
@@ -3224,6 +3327,7 @@ function renderTasks() {
     renderMap();
     return;
   }
+  closeMapTimePopover(); // leaving the map — never leave a popover hanging in the hidden wrap
   if (mapWrap) mapWrap.style.display = 'none';
   if (taskListEl) taskListEl.style.display = '';
   if (guidesBtn) guidesBtn.style.display = 'none';
@@ -3320,9 +3424,11 @@ function renderTasks() {
 const MAP_VB_W = 1600;     // content-canvas width (fixed); height adapts to the container
 let MAP_VB_H = 1024;       // recomputed by fitMapCanvas() so the sheet fills the wrap (no letterbox)
 const MAP_PAD = 56;        // inner margin in viewBox units (keeps glyphs off the edge)
-const WORKDAY_MIN = 480;   // 8h ≈ full map width
+const WORKDAY_MIN = 480;   // 8h = the capacity budget mark
+let mapRulerMin = WORKDAY_MIN; // current duration-ruler extent (min); auto-fit to content, recomputed on render (never mid-gesture)
 let mapRangeBoxes = [];    // [{catId,minX,minY,maxX,maxY}] — refreshed each renderMap, used for drop hit-test
 let mapDrag = null;        // active peak drag session, or null
+let mapTimePop = null;     // { id, el } while a peak time-popover is open (freezes the ruler)
 let mapHandlersBound = false;
 let mapGuides = true;      // show the time-axis guides (M5)
 // ── Google-Maps-style zoom/pan over a WORLD larger than the content. ──
@@ -3450,7 +3556,7 @@ function refreshHud() { if (mapSelection.size) showHud([...mapSelection]); else 
 // Drop zones are fixed HTML overlays (screen space) so they stay reachable at
 // any zoom/pan. Hit-test the pointer's client coords against the zone elements.
 function overDropZone(clientX, clientY) {
-  for (const [id, kind] of [['mapCopy', 'copy'], ['mapTrash', 'trash']]) {
+  for (const [id, kind] of [['mapCopy', 'copy'], ['mapTrash', 'trash'], ['mapNotToday', 'notToday']]) {
     const el = document.getElementById(id);
     if (!el) continue;
     const r = el.getBoundingClientRect();
@@ -3464,20 +3570,41 @@ function showDropZones() {
   // than the viewport), so they're always reachable. copy = left, delete = centre.
   const r = w.getBoundingClientRect();
   const top = Math.round(Math.min(r.bottom, window.innerHeight) - 78 - 16);
+  // copy = left, delete = centre, not-today (fog bank) = right — always on-screen.
   const copy = document.getElementById('mapCopy'), trash = document.getElementById('mapTrash');
+  const nt = document.getElementById('mapNotToday');
   if (copy)  { copy.style.top = top + 'px';  copy.style.left = Math.round(r.left + 16) + 'px'; }
   if (trash) { trash.style.top = top + 'px'; trash.style.left = Math.round(r.left + r.width / 2 - 46) + 'px'; }
+  // Offset extra to the left of the right edge so it never sits under the zoom control.
+  if (nt)    { nt.style.top = top + 'px';    nt.style.left = Math.round(Math.min(r.right, window.innerWidth) - 16 - 92 - 52) + 'px'; }
   w.classList.add('dropzones-on');
 }
 function hideDropZones() {
   const w = document.getElementById('mapWrap'); if (w) w.classList.remove('dropzones-on');
   document.getElementById('mapTrash')?.classList.remove('over');
   document.getElementById('mapCopy')?.classList.remove('over');
+  document.getElementById('mapNotToday')?.classList.remove('over');
 }
 
 
 function mclamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function autoX(mins) { return mclamp(0.06 + 0.88 * Math.min(mins || 0, WORKDAY_MIN) / WORKDAY_MIN, 0.06, 0.94); }
+// Duration → x. The ruler extent (rmax) auto-fits the day so a light schedule
+// spreads across the width instead of huddling in the left fifth; defaults to the
+// current fitted extent. Semantics unchanged otherwise (linear, clamped 0.06..0.94).
+function autoX(mins, rmax) { rmax = rmax || mapRulerMin; return mclamp(0.06 + 0.88 * Math.min(mins || 0, rmax) / rmax, 0.06, 0.94); }
+// Fit the duration ruler to the day: peaks are placed by their OWN duration (autoX
+// is per-task), so the content extent is the longest single task. When the day is
+// overcommitted the whole TOTAL must fit too, so the 8h capacity mark stays on-canvas.
+// Snap UP to the next whole hour (leaves ~an hour of headroom on the boundary), floor 2h.
+function computeRulerMin() {
+  const vis = tasks.filter(t => !t.done && !isHiddenToday(t));
+  let longest = 0, total = 0;
+  for (const t of vis) { const m = t.mins || 0; if (m > longest) longest = m; total += m; }
+  let contentMin = longest;
+  if (total > WORKDAY_MIN) contentMin = Math.max(contentMin, total);
+  const hours = Math.max(2, Math.ceil((contentMin + 1) / 60));
+  return hours * 60;
+}
 function autoY(i, n) { return n <= 1 ? 0.5 : mclamp(0.10 + 0.80 * (i / (n - 1)), 0.10, 0.90); }
 // Compute-on-render position; never written back unless the user drags it (M2).
 function peakPos(t, i, n) {
@@ -3594,13 +3721,14 @@ function mapAxisLayer() {
   const left = MAP_PAD, right = MAP_VB_W - MAP_PAD, top = MAP_PAD, bottom = MAP_VB_H - MAP_PAD;
   const f = (v) => v.toFixed(1);
   let s = '';
-  // ── time ruler (X = duration; autoX is linear over 0..8h) ──
+  // ── time ruler (X = duration; autoX is linear over 0..mapRulerMin) ──
+  const rulerHours = Math.floor(mapRulerMin / 60);
   s += `<line class="map-axis-base" x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}"/>`;
-  for (let m = 30; m < 480; m += 60) { // minor: every half-hour between the hours
+  for (let m = 30; m < mapRulerMin; m += 60) { // minor: every half-hour between the hours
     const x = autoX(m) * MAP_VB_W;
     s += `<line class="map-axis-tick-minor" x1="${f(x)}" y1="${bottom}" x2="${f(x)}" y2="${bottom - 8}"/>`;
   }
-  for (let hr = 1; hr <= 8; hr++) { // major: each hour, with gridline + label
+  for (let hr = 1; hr <= rulerHours; hr++) { // major: each hour, with gridline + label
     const x = autoX(hr * 60) * MAP_VB_W;
     s += `<line class="map-axis-grid" x1="${f(x)}" y1="${top}" x2="${f(x)}" y2="${bottom}"/>`;
     s += `<line class="map-axis-tick" x1="${f(x)}" y1="${bottom}" x2="${f(x)}" y2="${bottom - 16}"/>`;
@@ -3614,6 +3742,12 @@ function mapAxisLayer() {
   s += `<text class="map-axis-cap" x="${midX + 16}" y="${top + 36}" text-anchor="start">PRIORITY · HIGH</text>`;
   s += `<text class="map-axis-cap" x="${midX + 16}" y="${((top + bottom) / 2).toFixed(1)}" text-anchor="start" style="opacity:0.55">MED</text>`;
   s += `<text class="map-axis-cap" x="${midX + 16}" y="${bottom - 14}" text-anchor="start">LOW</text>`;
+  // ── alpine light: hairline whisker ticks at the HIGH/MED/LOW band boundaries ──
+  const b1 = top + (bottom - top) / 3, b2 = top + 2 * (bottom - top) / 3;
+  for (const y of [b1, b2]) {
+    s += `<line class="map-whisker" x1="${midX - 26}" y1="${f(y)}" x2="${midX - 10}" y2="${f(y)}"/>`;
+    s += `<line class="map-whisker" x1="${midX + 10}" y1="${f(y)}" x2="${midX + 26}" y2="${f(y)}"/>`;
+  }
   return `<g class="map-grid">${s}</g>`;
 }
 
@@ -3622,6 +3756,12 @@ function renderMap() {
   if (!svg) return;
   fitMapCanvas();           // match canvas shape to the wrap so the map fills it (no letterbox)
   applyMapView();           // push the re-fitted viewBox before drawing
+  // Re-fit the duration ruler to the day — but NEVER mid-gesture (a live peak drag,
+  // pinch-zoom or pan): re-scaling then would yank the ground out under the fingers.
+  // renderMap only runs at gesture *release*, but guard explicitly to honour the rule.
+  // …and never while a time popover is open — re-scaling then would slide the
+  // whole board under the anchored popover. Re-fit happens on popover close.
+  if (!mapDrag && !mapPinch && !mapTimePop) mapRulerMin = computeRulerMin();
   const visible = tasks.filter(t => !t.done && !isHiddenToday(t));
   const peaksData = visible; // "Not today" tasks are excluded from the map entirely (not just misted)
   const n = peaksData.length;
@@ -3633,7 +3773,34 @@ function renderMap() {
     + `<rect class="map-bg" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" rx="6"/>`
     + `<rect class="map-neatline" x="12" y="12" width="${MAP_VB_W - 24}" height="${MAP_VB_H - 24}"/>`
     + `<rect class="map-neatline-inner" x="20" y="20" width="${MAP_VB_W - 40}" height="${MAP_VB_H - 40}"/>`;
-  let html = bg + (mapGuides ? mapAxisLayer() : '');
+
+  // ── Hypsometric washes (Guides only) — hand-atlas tinting laid UNDER the
+  //    linework, anchored to HOURS on the ruler so they mean the same at any scale.
+  //    Never the only encoding: the red overflow tint on peaks past 8h stays. ──
+  let mapDefs = '', washes = '';
+  if (mapGuides) {
+    const dark = !document.body.classList.contains('light');
+    // Alpine light: a faint value-lift (no hue) over the top of the sheet, gone by mid-canvas.
+    mapDefs += `<linearGradient id="mapAlpine" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${MAP_VB_H}">`
+      + `<stop offset="0" stop-color="var(--map-alpine)" stop-opacity="0.045"/>`
+      + `<stop offset="0.15" stop-color="var(--map-alpine)" stop-opacity="0.03"/>`
+      + `<stop offset="0.5" stop-color="var(--map-alpine)" stop-opacity="0"/>`
+      + `</linearGradient>`;
+    washes += `<rect class="map-alpine" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" fill="url(#mapAlpine)"/>`;
+    // Duration wash: nothing until 6h, then a barely-there rise toward and past 8h.
+    if (mapRulerMin >= 360) {
+      const s6 = autoX(360), s8 = autoX(WORKDAY_MIN);
+      const a6 = dark ? 0.04 : 0.035, a8 = dark ? 0.055 : 0.05, aEnd = dark ? 0.06 : 0.05;
+      mapDefs += `<linearGradient id="mapWash" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${MAP_VB_W}" y2="0">`
+        + `<stop offset="${Math.max(0, s6 - 0.001).toFixed(4)}" stop-color="var(--map-wash)" stop-opacity="0"/>`
+        + `<stop offset="${s6.toFixed(4)}" stop-color="var(--map-wash)" stop-opacity="${a6}"/>`
+        + `<stop offset="${s8.toFixed(4)}" stop-color="var(--map-wash)" stop-opacity="${a8}"/>`
+        + `<stop offset="1" stop-color="var(--map-wash)" stop-opacity="${aEnd}"/>`
+        + `</linearGradient>`;
+      washes += `<rect class="map-wash" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" fill="url(#mapWash)"/>`;
+    }
+  }
+  let html = (mapDefs ? `<defs>${mapDefs}</defs>` : '') + bg + washes + (mapGuides ? mapAxisLayer() : '');
 
   if (n === 0) {
     html += `<text class="map-empty-label" x="${MAP_VB_W/2}" y="${MAP_VB_H/2}">Add a task to raise your first peak</text>`;
@@ -3755,6 +3922,8 @@ function renderMap() {
     const x8 = autoX(WORKDAY_MIN) * MAP_VB_W;
     capacity = `<g class="map-overflow">`
       + `<rect class="map-overflow-band" x="${x8.toFixed(1)}" y="0" width="${(MAP_VB_W - x8).toFixed(1)}" height="${MAP_VB_H}"/>`
+      + `<line class="map-cap-tick" x1="${x8.toFixed(1)}" y1="${(MAP_PAD + 8)}" x2="${x8.toFixed(1)}" y2="${(MAP_VB_H - MAP_PAD).toFixed(1)}"/>`
+      + `<text class="map-cap-label" x="${x8.toFixed(1)}" y="${(MAP_PAD - 8)}" text-anchor="middle">8H · CAPACITY</text>`
       + `<text class="map-overflow-label" x="${MAP_VB_W - 36}" y="46" text-anchor="end">${fmtMins(totalMins)} planned · over 8h</text>`
       + `</g>`;
   }
@@ -3776,6 +3945,10 @@ function clientToVB(clientX, clientY, svg, ctm) {
 
 function onMapPointerDown(e) {
   mapPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // Any fresh gesture on the map (tap-outside, drag, pinch, tapping another peak)
+  // dismisses an open time popover. A clean tap re-opens it in pointerup; a drag
+  // never does — so it also satisfies "close after opening a drag on the peak".
+  closeMapTimePopover();
   // Safety net: a fresh first pointer should never have a live drag. If one
   // lingers (a previous pointerup was lost / capture failed), clean it up first.
   if (mapDrag && mapPointers.size === 1) cancelMapDrag();
@@ -3933,19 +4106,21 @@ function onMapPointerMove(e) {
   const px = mapDrag.cx0 + dx, py = mapDrag.cy0 + dy;
   // Drop-zone hit-test uses the cursor's SCREEN position (zones are fixed overlays).
   const zone = overDropZone(e.clientX, e.clientY);
-  const overTrash = zone === 'trash', overCopy = zone === 'copy';
+  const overTrash = zone === 'trash', overCopy = zone === 'copy', overNot = zone === 'notToday';
   document.getElementById('mapTrash')?.classList.toggle('over', overTrash);
   document.getElementById('mapCopy')?.classList.toggle('over', overCopy);
+  document.getElementById('mapNotToday')?.classList.toggle('over', overNot);
+  const overZone = overTrash || overCopy || overNot;
   // Live-highlight the peak we'd MERGE with (touching another mountain → merge).
   document.querySelectorAll('#mapSvg .map-peak.merge-target').forEach(p => p.classList.remove('merge-target'));
-  const mergeId = (overTrash || overCopy) ? null : findPeakAt(px, py, mapDrag.id);
+  const mergeId = overZone ? null : findPeakAt(px, py, mapDrag.id);
   if (mergeId != null) {
     const mg = document.querySelector(`#mapSvg .map-peak[data-task-id="${mergeId}"]`);
     if (mg) mg.classList.add('merge-target');
   }
   // Live-highlight the range we'd join (suppressed over a drop-zone or a merge target)
   document.querySelectorAll('#mapSvg .map-range').forEach(r => r.classList.remove('drop-target'));
-  const overCat = (overTrash || overCopy || mergeId != null) ? null : hitTestRange(px, py, mapDrag.id);
+  const overCat = (overZone || mergeId != null) ? null : hitTestRange(px, py, mapDrag.id);
   if (overCat && overCat !== tasks.find(x => x.id === mapDrag.id)?.categoryId) {
     const idx = mapRangeBoxes.findIndex(b => b.catId === overCat);
     const el = document.querySelectorAll('#mapSvg .map-range')[idx];
@@ -4072,6 +4247,11 @@ function onMapPointerUp(e) {
   const zone = overDropZone(e.clientX, e.clientY);
   if (zone === 'copy')  { duplicateTask(d.id); return; }
   if (zone === 'trash') { deleteTask(d.id); return; }
+  // Fog bank → push to tomorrow. Reuses the ONE list-side rule (toggleNotToday):
+  // mists the task out of today, auto-returns tomorrow, feeds the FACE IT! streak.
+  // renderMap already excludes hidden tasks, so the peak leaves the board;
+  // toggleNotToday persists + syncs (saveAll) and updates stats itself.
+  if (zone === 'notToday') { toggleNotToday(d.id); return; }
 
   // Persist normalized position (clamped to the same inner margin renderMap uses).
   t.mapX = mclamp(px / MAP_VB_W, MAP_PAD / MAP_VB_W, 1 - MAP_PAD / MAP_VB_W);
@@ -4156,6 +4336,7 @@ function mergeTasks(draggedId, targetId, clientX, clientY) {
 function onPeakClick(id) {
   selectTask(id);
   renderMap();
+  openMapTimePopover(id); // a clean single tap also offers to retune the time
 }
 
 function bindMapHandlersOnce() {
@@ -4216,7 +4397,8 @@ function onMapKeydown(e) {
       if (at && !at.done && !isHiddenToday(at)) { deleteTask(activeId); e.preventDefault(); } // only the visible active peak
     }
   } else if (k === 'escape') {
-    if (mapDrag) { cancelMapDrag(); e.preventDefault(); }        // abort an in-flight drag
+    if (mapTimePop) { closeMapTimePopover(); renderMap(); e.preventDefault(); } // close popover (+ re-fit ruler)
+    else if (mapDrag) { cancelMapDrag(); e.preventDefault(); }   // abort an in-flight drag
     else if (mapSelection.size) { mapSelection.clear(); renderMap(); e.preventDefault(); }
   }
 }
@@ -4388,6 +4570,136 @@ function mapRenamePeak(id) {
     renderMap();
     if (id === activeId) renderActivePill();
   });
+}
+
+// ── PEAK TIME POPOVER ──────────────────────────────────────────────────────
+// The map is the planning surface and estimates are always wrong, so a clean tap
+// on a single peak offers a small etched popover to retune its minutes without
+// leaving the board. Preset chips reuse the list's time dropdown verbatim; the
+// ±5 stepper is for fine tuning. While it's open the ruler is frozen (see the
+// renderMap guard) so the board can't slide out from under the popover.
+
+// The preset minutes ARE the list view's #taskTime options — one source of truth.
+function mapTimePresets() {
+  const sel = document.getElementById('taskTime');
+  const opts = sel ? [...sel.options].map(o => parseInt(o.value, 10)).filter(n => n > 0) : [];
+  return opts.length ? opts : [1, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
+}
+// Lowest minutes the task may drop to: never below what's already been spent
+// (rounded up to the next 5m), and never below 5m.
+function mapTimeFloor(t) {
+  const spentMin = Math.ceil((t.secsSpent || 0) / 60);
+  return Math.max(5, Math.ceil(spentMin / 5) * 5);
+}
+
+function openMapTimePopover(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) return;
+  closeMapTimePopover();
+  const wrap = document.getElementById('mapWrap');
+  if (!wrap) return;
+  const el = document.createElement('div');
+  el.className = 'map-time-pop';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Change time · ' + t.name);
+  // Taps inside the popover must never bubble to the map (would start a drag/deselect).
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+  wrap.appendChild(el);
+  mapTimePop = { id, el };
+  renderMapTimePopover();
+}
+
+function renderMapTimePopover() {
+  if (!mapTimePop) return;
+  const el = mapTimePop.el, id = mapTimePop.id;
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) { closeMapTimePopover(); return; }
+  const floor = mapTimeFloor(t);
+  const chips = mapTimePresets().map(m => {
+    const sel = m === t.mins, dis = m < floor;
+    return `<button type="button" class="map-pop-chip${sel ? ' sel' : ''}"${dis ? ' disabled' : ''}`
+      + ` aria-pressed="${sel}" onclick="mapPopSet(${m})">${esc(fmtMins(m))}</button>`;
+  }).join('');
+  // Rows are stacked so a second action row (e.g. "push to tomorrow") can slot in later.
+  el.innerHTML =
+      `<div class="map-pop-name" title="${esc(t.name)}">${esc(mapTrunc(t.name, 34))}</div>`
+    + `<div class="map-pop-row map-pop-chips">${chips}</div>`
+    + `<div class="map-pop-row map-pop-stepper">`
+    +   `<button type="button" class="map-pop-step" aria-label="5 minutes less" onclick="mapPopStep(-5)">&minus;5</button>`
+    +   `<span class="map-pop-val" aria-live="polite">${esc(fmtMins(t.mins))}</span>`
+    +   `<button type="button" class="map-pop-step" aria-label="5 minutes more" onclick="mapPopStep(5)">+5</button>`
+    + `</div>`
+    // Action row — same verb, wording and line-art moon as the List View snooze.
+    + `<div class="map-pop-row map-pop-actions">`
+    +   `<button type="button" class="map-pop-action" onclick="mapPopNotToday()" title="Not today (auto-returns tomorrow)">${MOON_SVG}<span>Not today</span></button>`
+    + `</div>`;
+  positionMapTimePopover();
+}
+
+// Anchor above the peak; flip below / clamp inside the map wrap so it's never
+// clipped. On a narrow map it docks to the bottom edge instead of floating.
+function positionMapTimePopover() {
+  if (!mapTimePop) return;
+  const el = mapTimePop.el;
+  const wrap = document.getElementById('mapWrap');
+  const g = document.querySelector(`#mapSvg .map-peak[data-task-id="${mapTimePop.id}"]`);
+  if (!wrap || !g) return;
+  const wr = wrap.getBoundingClientRect();
+  const pr = g.getBoundingClientRect();
+  const M = 8;
+  el.classList.toggle('docked', wr.width < 480);
+  const pw = el.offsetWidth, ph = el.offsetHeight;
+  if (wr.width < 480) { // dock to the bottom of the map — always legible, never off-screen
+    el.style.left = Math.round((wr.width - pw) / 2) + 'px';
+    el.style.top  = Math.round(wr.height - ph - M) + 'px';
+    return;
+  }
+  let left = (pr.left + pr.width / 2) - wr.left - pw / 2;
+  let top  = (pr.top - wr.top) - ph - 10;         // prefer above the apex
+  if (top < M) top = (pr.bottom - wr.top) + 10;   // flip below if it'd clip the top
+  left = Math.max(M, Math.min(left, wr.width  - pw - M));
+  top  = Math.max(M, Math.min(top,  wr.height - ph - M));
+  el.style.left = Math.round(left) + 'px';
+  el.style.top  = Math.round(top) + 'px';
+}
+
+// Set the task to `mins` (clamped). Same edit rule as the list (applyTaskTime);
+// the peak resizes immediately but the ruler stays put; persist + sync like the
+// list path (saveAll schedules the same cloud push). Popover refreshes in place.
+function mapPopSet(mins) {
+  if (!mapTimePop) return;
+  const t = tasks.find(x => x.id === mapTimePop.id);
+  if (!t || t.done) { closeMapTimePopover(); return; }
+  mins = Math.max(mapTimeFloor(t), mins); // clamp — the stepper simply stops here
+  if (mins === t.mins) return;
+  applyTaskTime(t, mins);
+  if (activeId === t.id) renderActivePill();
+  renderMap();            // ruler frozen (mapTimePop set) → peak resizes, board holds
+  updateStats(); saveAll();
+  renderMapTimePopover(); // refresh the highlight + re-anchor to the resized peak
+}
+function mapPopStep(delta) {
+  if (!mapTimePop) return;
+  const t = tasks.find(x => x.id === mapTimePop.id);
+  if (t) mapPopSet(t.mins + delta);
+}
+// "Not today" from the popover — reuses the ONE list-side rule. Dismiss the
+// popover first (the peak is about to leave the board), then toggleNotToday
+// hides it, updates the streak, re-renders (→ renderMap drops the peak),
+// updates stats and persists + syncs via saveAll — matching List View exactly.
+function mapPopNotToday() {
+  if (!mapTimePop) return;
+  const id = mapTimePop.id;
+  const t = tasks.find(x => x.id === id);
+  if (!t || t.done) { closeMapTimePopover(); return; }
+  closeMapTimePopover();
+  toggleNotToday(id);
+}
+function closeMapTimePopover() {
+  if (!mapTimePop) return;
+  const el = mapTimePop.el;
+  mapTimePop = null;
+  if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
 function setViewMode(m) {
