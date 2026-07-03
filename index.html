@@ -630,16 +630,6 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .map-pop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.map-pop-chip {
-  font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.4px;
-  color: var(--map-ink); background: color-mix(in srgb, var(--map-ink) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--map-ink) 28%, transparent);
-  border-radius: 6px; padding: 5px 9px; min-height: 30px; cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.map-pop-chip:hover:not(:disabled) { background: color-mix(in srgb, var(--map-ink) 16%, transparent); }
-.map-pop-chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.map-pop-chip:disabled { opacity: 0.3; cursor: default; }
 .map-pop-stepper {
   justify-content: center; gap: 12px; padding-top: 9px; margin-top: 1px;
   border-top: 1px solid color-mix(in srgb, var(--map-ink) 16%, transparent);
@@ -1415,7 +1405,6 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   .map-hud { max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; }
 
   /* Time popover: 44px touch targets on phones. */
-  .map-pop-chip { min-height: 44px; font-size: 13px; padding: 6px 11px; }
   .map-pop-step { min-height: 44px; min-width: 48px; font-size: 15px; }
   .map-pop-action { min-height: 44px; font-size: 14px; }
   .map-pop-name { font-size: 20px; }
@@ -4575,11 +4564,6 @@ function mapRenamePeak(id) {
 // renderMap guard) so the board can't slide out from under the popover.
 
 // The preset minutes ARE the list view's #taskTime options — one source of truth.
-function mapTimePresets() {
-  const sel = document.getElementById('taskTime');
-  const opts = sel ? [...sel.options].map(o => parseInt(o.value, 10)).filter(n => n > 0) : [];
-  return opts.length ? opts : [1, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
-}
 // Lowest minutes the task may drop to: never below what's already been spent
 // (rounded up to the next 5m), and never below 5m.
 function mapTimeFloor(t) {
@@ -4609,16 +4593,10 @@ function renderMapTimePopover() {
   const el = mapTimePop.el, id = mapTimePop.id;
   const t = tasks.find(x => x.id === id);
   if (!t || t.done) { closeMapTimePopover(); return; }
-  const floor = mapTimeFloor(t);
-  const chips = mapTimePresets().map(m => {
-    const sel = m === t.mins, dis = m < floor;
-    return `<button type="button" class="map-pop-chip${sel ? ' sel' : ''}"${dis ? ' disabled' : ''}`
-      + ` aria-pressed="${sel}" onclick="mapPopSet(${m})">${esc(fmtMins(m))}</button>`;
-  }).join('');
-  // Rows are stacked so a second action row (e.g. "push to tomorrow") can slot in later.
+  // Compact: just a −5 / value / +5 stepper (clamped to the spent-time floor),
+  // no preset chip grid. Rows are stacked so the action row slots in below.
   el.innerHTML =
       `<div class="map-pop-name" title="${esc(t.name)}">${esc(mapTrunc(t.name, 34))}</div>`
-    + `<div class="map-pop-row map-pop-chips">${chips}</div>`
     + `<div class="map-pop-row map-pop-stepper">`
     +   `<button type="button" class="map-pop-step" aria-label="5 minutes less" onclick="mapPopStep(-5)">&minus;5</button>`
     +   `<span class="map-pop-val" aria-live="polite">${esc(fmtMins(t.mins))}</span>`

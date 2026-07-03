@@ -354,7 +354,7 @@ test('completing a task logs it to history and the count reflects it', async ({ 
   expect(r.histName).toBe('Write report');
 });
 
-test('tapping a peak opens the time popover; a chip changes mins and persists', async ({ page }) => {
+test('tapping a peak opens the time popover; the +5 stepper changes mins and persists', async ({ page }) => {
   await seedTasks(page, [{ name: 'Estimate me', mins: 25 }]);
   const res = await page.evaluate(() => {
     setViewMode('map');
@@ -365,21 +365,19 @@ test('tapping a peak opens the time popover; a chip changes mins and persists', 
     g.dispatchEvent(new PointerEvent('pointerdown', o));
     g.dispatchEvent(new PointerEvent('pointerup', o));
     const pop = document.querySelector('.map-time-pop');
-    const selBefore = pop && pop.querySelector('.map-pop-chip.sel') ? pop.querySelector('.map-pop-chip.sel').textContent : null;
-    const chipCount = pop ? pop.querySelectorAll('.map-pop-chip').length : 0;
-    const chip45 = pop ? [...pop.querySelectorAll('.map-pop-chip')].find(c => c.textContent === '45m') : null;
-    if (chip45) chip45.click();
-    return { open: !!pop, chipCount, selBefore, mins: tasks[0].mins, secs: tasks[0].secsRemaining, role: pop && pop.getAttribute('role') };
+    const valBefore = pop ? pop.querySelector('.map-pop-val').textContent : null;
+    const stepUp = pop ? [...pop.querySelectorAll('.map-pop-step')].find(b => b.textContent.includes('+5')) : null;
+    if (stepUp) { stepUp.click(); stepUp.click(); }   // 25 → 35
+    return { open: !!pop, valBefore, mins: tasks[0].mins, secs: tasks[0].secsRemaining, role: pop && pop.getAttribute('role') };
   });
   expect(res.open).toBe(true);
   expect(res.role).toBe('dialog');
-  expect(res.chipCount).toBe(11);       // same preset list as the #taskTime dropdown
-  expect(res.selBefore).toBe('25m');    // current value highlighted on open
-  expect(res.mins).toBe(45);            // chip changed the estimate
-  expect(res.secs).toBe(45 * 60);       // remaining clock reset to the new allotment
+  expect(res.valBefore).toBe('25m');    // current value shown on open
+  expect(res.mins).toBe(35);            // two +5 steps changed the estimate
+  expect(res.secs).toBe(35 * 60);       // remaining clock reset to the new allotment
   await page.reload();
   const persisted = await page.evaluate(() => (tasks.find(t => t.name === 'Estimate me') || {}).mins);
-  expect(persisted).toBe(45);           // survived a reload (saveAll persisted it)
+  expect(persisted).toBe(35);           // survived a reload (saveAll persisted it)
 });
 
 test('the map time popover clamps to time already spent and never below 5m', async ({ page }) => {
@@ -394,12 +392,11 @@ test('the map time popover clamps to time already spent and never below 5m', asy
     g.dispatchEvent(new PointerEvent('pointerup', o));
     for (let i = 0; i < 10; i++) mapPopStep(-5); // step down hard — must stop at the clamp
     const pop = document.querySelector('.map-time-pop');
-    const chip10 = [...pop.querySelectorAll('.map-pop-chip')].find(c => c.textContent === '10m');
-    return { mins: tasks[0].mins, secs: tasks[0].secsRemaining, chip10Disabled: chip10.disabled };
+    return { mins: tasks[0].mins, secs: tasks[0].secsRemaining, val: pop.querySelector('.map-pop-val').textContent };
   });
   expect(res.mins).toBe(15);            // stops at spent-rounded-up, never lower
   expect(res.secs).toBe(15 * 60);
-  expect(res.chip10Disabled).toBe(true); // sub-floor presets are disabled, not tappable
+  expect(res.val).toBe('15m');          // stepper display reflects the clamp
 });
 
 test('map time popover "Not today" pushes the peak to tomorrow (survives reload)', async ({ page }) => {
