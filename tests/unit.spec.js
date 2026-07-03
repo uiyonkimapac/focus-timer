@@ -99,3 +99,24 @@ test('esc() escapes quotes so attribute-context values cannot break out', async 
   const out = await page.evaluate(() => esc(`a"b'c<d>e&f`));
   expect(out).toBe('a&quot;b&#39;c&lt;d&gt;e&amp;f');
 });
+
+test('sanitizeTasks neutralizes a malicious sync id / categoryId and keeps clean tasks', async ({ page }) => {
+  const out = await page.evaluate(() => {
+    const evil = [
+      // id is a JS-breakout string (rendered raw into onclick="selectTask(${t.id})")
+      { id: '1);alert(document.cookie)//', name: 'pwn', categoryId: 'c1' },
+      // categoryId tries to break out of data-cat-id="${t.categoryId}"
+      { id: 42, name: 'attr break', categoryId: '"><img src=x onerror=alert(1)>' },
+      // a legitimate task must survive untouched
+      { id: 7, name: 'real', categoryId: 'c_123_456' },
+    ];
+    return sanitizeTasks(evil).map(t => ({ id: t.id, type: typeof t.id, categoryId: t.categoryId }));
+  });
+  // the string-id task is dropped (Number('1);…') is NaN → not finite)
+  expect(out.find(t => t.id === 42)).toBeTruthy();
+  expect(out.find(t => t.id === 7)).toBeTruthy();
+  expect(out.every(t => t.type === 'number')).toBe(true);          // every id is a real Number
+  expect(out.find(t => t.id === 42).categoryId).toBeNull();        // unsafe categoryId → null
+  expect(out.find(t => t.id === 7).categoryId).toBe('c_123_456');  // safe categoryId preserved
+  expect(out.some(t => String(t.categoryId).includes('<'))).toBe(false);
+});

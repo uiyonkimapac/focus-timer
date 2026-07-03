@@ -2149,12 +2149,14 @@ function applyRemote(d) {
 
   syncSuppress = true;
   try {
-    if (Array.isArray(d.tasks))      tasks      = d.tasks;
+    if (Array.isArray(d.tasks))      tasks      = sanitizeTasks(d.tasks);
     if (Array.isArray(d.history))    history    = d.history;
     if (Array.isArray(d.categories)) categories = sanitizeCategories(d.categories);
     if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; minsFocusedToday = d.stats.minsFocusedToday || 0; focusedDay = d.stats.focusedDay || ''; }
-    // tasks from older clients may lack categoryId — default to null (Uncategorized)
-    tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
+    // Re-parent any task whose categoryId points to a category that isn't in the
+    // synced set (deleted, or a forged id that sanitizeTasks nulled) → Uncategorized.
+    const validCatIds = new Set(categories.map(c => c.id));
+    tasks.forEach(t => { if (t.categoryId && !validCatIds.has(t.categoryId)) t.categoryId = null; });
     if (activeId && !tasks.find(t => t.id === activeId)) {
       const first = tasks.find(t => !t.done);
       activeId = first ? first.id : null;
@@ -2258,20 +2260,11 @@ function loadAll() {
     }
   } catch(e) {}
 
-  // ── Sanitize: guard the shapes (a corrupt blob shouldn't crash the app),
-  // then drop duplicate/malformed task IDs and default categoryId for legacy tasks ──
-  if (!Array.isArray(tasks)) tasks = [];
+  // ── Sanitize: guard the shapes (a corrupt blob shouldn't crash the app), then
+  // coerce ids to Numbers, drop duplicate/malformed tasks, and validate categoryId ──
   if (!Array.isArray(history)) history = [];
   if (!Array.isArray(categories)) categories = [];
-  const seenIds = new Set();
-  tasks = tasks.filter(t => {
-    if (!t || typeof t.name !== 'string' || !t.name || t.id == null) return false;
-    const idStr = String(t.id);
-    if (seenIds.has(idStr)) return false;
-    seenIds.add(idStr);
-    return true;
-  });
-  tasks.forEach(t => { if (t.categoryId === undefined) t.categoryId = null; });
+  tasks = sanitizeTasks(tasks);
 
   // ── Sanitize: drop categories without id/name; ensure required fields and a
   // safe colour (the colour is rendered into HTML/SVG attributes unescaped) ──
@@ -5105,22 +5098,56 @@ function safeColor(c, fallback) {
   return (/^#[0-9a-fA-F]{3,8}$/.test(c) || /^var\(--[\w-]+\)$/.test(c)) ? c : fallback;
 }
 
+// Validate an id before it reaches an HTML attribute or an onclick JS-string
+// context. Category ids are minted as `c_<ts>_<rand>` (and seed data uses short
+// tokens like `c1`), so a legitimate id only ever contains [A-Za-z0-9_-]. Anything
+// else is corrupt or a sync payload trying to break out of data-cat-id="${id}" /
+// toggleCategoryCollapsed('${id}') / data-cat-id="${t.categoryId}". Returns the id
+// when safe, otherwise null. This is the id counterpart to safeColor().
+function safeId(x) {
+  return (typeof x === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x)) ? x : null;
+}
+
 // Shared category sanitizer for BOTH the local load() path and the remote
-// applyRemote() sync path: drops shapeless/duplicate categories and forces a safe
-// colour. Remote sync data is untrusted (anyone who knows a sync code can write the
-// row), so it must pass through the same guard as local data.
+// applyRemote() sync path: drops shapeless/duplicate categories, rejects unsafe ids,
+// and forces a safe colour. Remote sync data is untrusted (anyone who knows a sync
+// code can write the row), so it must pass through the same guard as local data.
 function sanitizeCategories(arr) {
   if (!Array.isArray(arr)) return [];
   const seen = new Set();
   const out = [];
   arr.forEach((c, i) => {
-    if (!c || typeof c.id !== 'string' || !c.name) return;
+    if (!c || safeId(c.id) === null || !c.name) return;
     if (seen.has(c.id)) return;
     seen.add(c.id);
     if (typeof c.order !== 'number') c.order = i;
     c.color = safeColor(c.color, CAT_COLORS[i % CAT_COLORS.length]);
     if (typeof c.collapsed !== 'boolean') c.collapsed = false;
     out.push(c);
+  });
+  return out;
+}
+
+// Shared task sanitizer for BOTH loadAll() and the applyRemote() sync path. Sync
+// data is untrusted, and task fields are interpolated into HTML/JS contexts at
+// render time — id into onclick="selectTask(${t.id})" and data-task-id, categoryId
+// into data-cat-id="${t.categoryId}". So: coerce id to a finite Number (drop the
+// task if it isn't one — matches how ids are minted by newId() and read back via
+// Number(dataset.taskId) everywhere), dedupe by id, require a string name, and force
+// categoryId to null unless it's a safe id string. Orphan categoryIds (pointing at a
+// non-existent category) are re-parented to null separately, once categories load.
+function sanitizeTasks(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Set();
+  const out = [];
+  arr.forEach(t => {
+    if (!t || typeof t.name !== 'string' || !t.name) return;
+    const id = Number(t.id);
+    if (!Number.isFinite(id) || seen.has(id)) return;
+    seen.add(id);
+    t.id = id;
+    t.categoryId = (t.categoryId == null) ? null : safeId(t.categoryId);
+    out.push(t);
   });
   return out;
 }
