@@ -169,3 +169,21 @@ test('computeRulerMin grows so the 8h capacity mark stays on-canvas for a loaded
   expect(r.x8).toBeGreaterThan(0.06);
   expect(r.x8).toBeLessThan(0.94);        // the 8h mark is on the sheet, not clamped to the edge
 });
+
+test('a locked ruler span overrides auto-fit; Auto restores it', async ({ page }) => {
+  const r = await page.evaluate((tset) => {
+    tasks.length = 0; tasks.push(...tset);   // a light day that auto-fits to 2h
+    const auto = computeRulerMin();
+    setMapRulerSpan('480');                   // lock to 8h
+    const locked = computeRulerMin();
+    const persisted = localStorage.getItem('focustimer_mapRuler');
+    setMapRulerSpan('auto');                  // back to auto
+    const restored = computeRulerMin();
+    return { auto, locked, persisted, restored, lockAfterAuto: mapRulerLock };
+  }, seedMins([25, 15, 10]));
+  expect(r.auto).toBe(120);            // auto-fit = 2h for this light day
+  expect(r.locked).toBe(480);          // lock forces 8h regardless of content
+  expect(r.persisted).toBe('480');     // choice persisted
+  expect(r.restored).toBe(120);        // Auto restores auto-fit
+  expect(r.lockAfterAuto).toBeNull();
+});

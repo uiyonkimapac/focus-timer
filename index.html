@@ -1418,7 +1418,7 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   body.map-mode .tab-nav,
   body.map-mode .panel-title,
   body.map-mode .add-row { display: none; }
-  body.map-mode .header-actions .btn-small:not(#btnGuides):not(#btnFullMap),
+  body.map-mode .header-actions .btn-small:not(#btnGuides):not(#btnFullMap):not(#mapRulerSel),
   body.map-mode .header-actions .btn-import { display: none; }
   body.map-mode .tasks-pane { padding-top: 8px; }
   body.map-mode .map-wrap { height: calc(100dvh - 150px); min-height: 60vh; }
@@ -1695,7 +1695,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   body.map-mode .add-row { display: none; }
   body.map-mode .tab-nav { display: none; }
   body.map-mode .panel-title { display: none; }
-  body.map-mode .header-actions .btn-small:not(#btnGuides),
+  body.map-mode .header-actions .btn-small:not(#btnGuides):not(#mapRulerSel),
   body.map-mode .header-actions .btn-import { display: none; }
   body.map-mode .panel-header { margin-bottom: 0; }
   body.map-mode .tasks-pane { padding: 6px 8px; }
@@ -1927,6 +1927,13 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
             </div>
             <button class="btn-small" id="btnGuides" onclick="toggleMapGuides()" title="Show/hide the time guides" style="display:none;">⊞ Guides</button>
             <button class="btn-small" id="btnFullMap" onclick="toggleFullMap()" title="Full map — hide the side panel so the map fills the screen" style="display:none;">⛶ Full map</button>
+            <select class="btn-small" id="mapRulerSel" onchange="setMapRulerSpan(this.value)" title="Duration ruler span — Auto fits the day, or lock a fixed scale" aria-label="Duration ruler span" style="display:none;">
+              <option value="auto">↔ Auto</option>
+              <option value="120">↔ 2h</option>
+              <option value="240">↔ 4h</option>
+              <option value="480">↔ 8h</option>
+              <option value="720">↔ 12h</option>
+            </select>
             <button class="btn-small" id="btnFocus" onclick="toggleSingleFocus()" title="Show only the current task">◉ Focus Mode</button>
             <button class="btn-small" id="btnRun" onclick="openRunSetup()" title="Auto-loop through your tasks">⟳ Run</button>
             <button class="btn-import" onclick="openImport()">
@@ -3300,12 +3307,14 @@ function renderTasks() {
   const taskListEl = document.getElementById('taskList');
   const guidesBtn = document.getElementById('btnGuides');
   const fullMapBtn = document.getElementById('btnFullMap');
+  const rulerSel = document.getElementById('mapRulerSel');
   document.body.classList.toggle('map-mode', viewMode === 'map');
   if (viewMode === 'map') {
     if (taskListEl) taskListEl.style.display = 'none';
     if (mapWrap) mapWrap.style.display = 'block';
     if (guidesBtn) guidesBtn.style.display = '';
     if (fullMapBtn) { fullMapBtn.style.display = ''; fullMapBtn.classList.toggle('active-mode', fullMap); }
+    if (rulerSel) { rulerSel.style.display = ''; rulerSel.value = mapRulerLock ? String(mapRulerLock) : 'auto'; rulerSel.classList.toggle('active-mode', !!mapRulerLock); }
     // Apply BEFORE renderMap so fitMapCanvas measures the full (panel-hidden) width.
     document.body.classList.toggle('full-map', fullMap);
     renderMap();
@@ -3316,6 +3325,7 @@ function renderTasks() {
   if (taskListEl) taskListEl.style.display = '';
   if (guidesBtn) guidesBtn.style.display = 'none';
   if (fullMapBtn) fullMapBtn.style.display = 'none';
+  if (rulerSel) rulerSel.style.display = 'none';
   document.body.classList.remove('full-map'); // never hide the timer in List view
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
@@ -3410,6 +3420,7 @@ let MAP_VB_H = 1024;       // recomputed by fitMapCanvas() so the sheet fills th
 const MAP_PAD = 56;        // inner margin in viewBox units (keeps glyphs off the edge)
 const WORKDAY_MIN = 480;   // 8h = the capacity budget mark
 let mapRulerMin = WORKDAY_MIN; // current duration-ruler extent (min); auto-fit to content, recomputed on render (never mid-gesture)
+let mapRulerLock = null;       // null = auto-fit; else a fixed span in minutes (user-selected, persisted)
 let mapRangeBoxes = [];    // [{catId,minX,minY,maxX,maxY}] — refreshed each renderMap, used for drop hit-test
 let mapDrag = null;        // active peak drag session, or null
 let mapTimePop = null;     // { id, el } while a peak time-popover is open (freezes the ruler)
@@ -3581,6 +3592,7 @@ function autoX(mins, rmax) { rmax = rmax || mapRulerMin; return mclamp(0.06 + 0.
 // overcommitted the whole TOTAL must fit too, so the 8h capacity mark stays on-canvas.
 // Snap UP to the next whole hour (leaves ~an hour of headroom on the boundary), floor 2h.
 function computeRulerMin() {
+  if (mapRulerLock) return mapRulerLock; // user locked a fixed span — skip auto-fit
   const vis = tasks.filter(t => !t.done && !isHiddenToday(t));
   let longest = 0, total = 0;
   for (const t of vis) { const m = t.mins || 0; if (m > longest) longest = m; total += m; }
@@ -4691,6 +4703,14 @@ function toggleMapGuides() {
   if (btn) btn.classList.toggle('active-mode', mapGuides);
   try { localStorage.setItem('focustimer_mapGuides', mapGuides ? '1' : '0'); } catch(e) {}
   renderMap();
+}
+
+// Ruler span: 'auto' re-enables auto-fit; a number locks the ruler to that many
+// minutes until the user picks Auto again. Persisted so the choice survives reloads.
+function setMapRulerSpan(val) {
+  mapRulerLock = (val === 'auto') ? null : (parseInt(val, 10) || null);
+  try { localStorage.setItem('focustimer_mapRuler', mapRulerLock ? String(mapRulerLock) : 'auto'); } catch(e) {}
+  renderMap(); // recomputes mapRulerMin (honouring the lock) and redraws
 }
 
 function toggleFullMap() {
@@ -6084,6 +6104,8 @@ loadAll();
   }
   const mg = localStorage.getItem('focustimer_mapGuides');
   if (mg === '0') mapGuides = false;
+  const mr = localStorage.getItem('focustimer_mapRuler');
+  if (mr && mr !== 'auto') { const n = parseInt(mr, 10); if (n > 0) mapRulerLock = n; }
   if (localStorage.getItem('focustimer_fullMap') === '1') fullMap = true;
   const gBtn = document.getElementById('btnGuides');
   if (gBtn && mapGuides) gBtn.classList.add('active-mode');
