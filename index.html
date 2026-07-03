@@ -45,7 +45,7 @@
   --map-ink: #cfc9b6;                    /* parchment ink — all line-art strokes */
   --map-peak-shade: rgba(0,0,0,0.32);    /* west-flank relief shading */
   --map-wash: #b0623f;                   /* hypsometric duration wash — dusty ember (dark) */
-  --map-alpine: #ffffff;                 /* alpine light — value-lift over the summit band */
+  --map-priority: #e6b84a;               /* priority light — MIT gold over the summit band */
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -464,7 +464,8 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
 .map-axis-cap { fill: var(--map-ink); opacity: 0.6; font-family: 'DM Mono', monospace; font-size: 16px; letter-spacing: 2.5px; }
 /* Hypsometric washes (Guides only) — hand-atlas tinting laid UNDER the linework. */
 .map-wash { pointer-events: none; }
-.map-alpine { pointer-events: none; }
+.map-priority { pointer-events: none; }
+.map-ancient { pointer-events: none; }
 /* Whisker ticks at the HIGH/MED/LOW priority band boundaries (part of alpine light). */
 .map-whisker { stroke: var(--map-ink); opacity: 0.32; stroke-width: 1; pointer-events: none; }
 /* 8h capacity mark — a hairline budget line + smallcap label, shown when overcommitted. */
@@ -675,7 +676,7 @@ body.light {
   --map-ink: #4a4334;
   --map-peak-shade: rgba(58,52,38,0.20);
   --map-wash: #a85a4e;                    /* faded sepia-rose duration wash (light) */
-  --map-alpine: #fffdf6;                  /* warm alpine light (light) */
+  --map-priority: #a8801f;                /* priority light — deeper gold reads on parchment */
 }
 body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
 .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -3770,19 +3771,56 @@ function renderMap() {
     + `<rect class="map-neatline" x="12" y="12" width="${MAP_VB_W - 24}" height="${MAP_VB_H - 24}"/>`
     + `<rect class="map-neatline-inner" x="20" y="20" width="${MAP_VB_W - 40}" height="${MAP_VB_H - 40}"/>`;
 
-  // ── Hypsometric washes (Guides only) — hand-atlas tinting laid UNDER the
-  //    linework, anchored to HOURS on the ruler so they mean the same at any scale.
+  // ── Ancient-chart atmosphere (always on): a parchment vignette, a faint
+  //    compass ring with degree ticks, and hairline corner flourishes — old-atlas
+  //    paper, kept at whisper opacity so it never reads as data or clutter. ──
+  const mapDark = !document.body.classList.contains('light');
+  let mapDefs = '', washes = '', decor = '';
+  {
+    const ccx = MAP_VB_W / 2, ccy = MAP_VB_H / 2, cr = Math.min(MAP_VB_W, MAP_VB_H) * 0.36;
+    mapDefs += `<radialGradient id="mapVignette" gradientUnits="userSpaceOnUse" cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${(Math.max(MAP_VB_W, MAP_VB_H) * 0.62).toFixed(1)}">`
+      + `<stop offset="0.55" stop-color="var(--map-ink)" stop-opacity="0"/>`
+      + `<stop offset="1" stop-color="var(--map-ink)" stop-opacity="0.05"/>`
+      + `</radialGradient>`;
+    decor += `<rect class="map-ancient" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" fill="url(#mapVignette)"/>`;
+    // Compass ring: double hairline circle + degree ticks (longer at the cardinals).
+    decor += `<g class="map-ancient" stroke="var(--map-ink)" fill="none">`
+      + `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${cr.toFixed(1)}" stroke-opacity="0.055" stroke-width="1.4"/>`
+      + `<circle cx="${ccx.toFixed(1)}" cy="${ccy.toFixed(1)}" r="${(cr - 10).toFixed(1)}" stroke-opacity="0.04" stroke-width="1"/>`;
+    for (let deg = 0; deg < 360; deg += 15) {
+      const a = deg * Math.PI / 180, cardinal = deg % 90 === 0;
+      const r1 = cr - 10, r2 = cardinal ? cr + 12 : cr;
+      decor += `<line x1="${(ccx + r1 * Math.cos(a)).toFixed(1)}" y1="${(ccy + r1 * Math.sin(a)).toFixed(1)}"`
+        + ` x2="${(ccx + r2 * Math.cos(a)).toFixed(1)}" y2="${(ccy + r2 * Math.sin(a)).toFixed(1)}"`
+        + ` stroke-opacity="${cardinal ? 0.08 : 0.05}" stroke-width="1"/>`;
+    }
+    decor += `</g>`;
+    // Corner flourishes: a quarter-arc + a small diagonal tick inside each corner.
+    const fl = 34, fo = 28;
+    decor += `<g class="map-ancient" stroke="var(--map-ink)" fill="none" stroke-opacity="0.12" stroke-width="1">`;
+    [[fo, fo, 1, 1], [MAP_VB_W - fo, fo, -1, 1], [fo, MAP_VB_H - fo, 1, -1], [MAP_VB_W - fo, MAP_VB_H - fo, -1, -1]]
+      .forEach(([x, y, sx, sy]) => {
+        decor += `<path d="M ${(x + sx * fl).toFixed(1)} ${y.toFixed(1)} Q ${x.toFixed(1)} ${y.toFixed(1)} ${x.toFixed(1)} ${(y + sy * fl).toFixed(1)}"/>`
+          + `<line x1="${(x + sx * 6).toFixed(1)}" y1="${(y + sy * 6).toFixed(1)}" x2="${(x + sx * 16).toFixed(1)}" y2="${(y + sy * 16).toFixed(1)}"/>`;
+      });
+    decor += `</g>`;
+  }
+
+  // ── Priority light (always on): the higher on the board, the more golden — the
+  //    same gold that marks the MIT, so "up = matters" reads in colour too. Fades
+  //    to nothing by mid-canvas; position + labels stay the primary encoding. ──
+  mapDefs += `<linearGradient id="mapPriority" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${MAP_VB_H}">`
+    + `<stop offset="0" stop-color="var(--map-priority)" stop-opacity="${mapDark ? 0.065 : 0.055}"/>`
+    + `<stop offset="0.18" stop-color="var(--map-priority)" stop-opacity="${mapDark ? 0.04 : 0.034}"/>`
+    + `<stop offset="0.55" stop-color="var(--map-priority)" stop-opacity="0"/>`
+    + `</linearGradient>`;
+  washes += `<rect class="map-priority" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" fill="url(#mapPriority)"/>`;
+
+  // ── Hypsometric duration wash (Guides only) — hand-atlas tinting laid UNDER the
+  //    linework, anchored to HOURS on the ruler so it means the same at any scale.
   //    Never the only encoding: the red overflow tint on peaks past 8h stays. ──
-  let mapDefs = '', washes = '';
   if (mapGuides) {
-    const dark = !document.body.classList.contains('light');
-    // Alpine light: a faint value-lift (no hue) over the top of the sheet, gone by mid-canvas.
-    mapDefs += `<linearGradient id="mapAlpine" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${MAP_VB_H}">`
-      + `<stop offset="0" stop-color="var(--map-alpine)" stop-opacity="0.045"/>`
-      + `<stop offset="0.15" stop-color="var(--map-alpine)" stop-opacity="0.03"/>`
-      + `<stop offset="0.5" stop-color="var(--map-alpine)" stop-opacity="0"/>`
-      + `</linearGradient>`;
-    washes += `<rect class="map-alpine" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" fill="url(#mapAlpine)"/>`;
+    const dark = mapDark;
     // Duration wash: nothing until 6h, then a barely-there rise toward and past 8h.
     if (mapRulerMin >= 360) {
       const s6 = autoX(360), s8 = autoX(WORKDAY_MIN);
@@ -3796,7 +3834,7 @@ function renderMap() {
       washes += `<rect class="map-wash" x="0" y="0" width="${MAP_VB_W}" height="${MAP_VB_H}" fill="url(#mapWash)"/>`;
     }
   }
-  let html = (mapDefs ? `<defs>${mapDefs}</defs>` : '') + bg + washes + (mapGuides ? mapAxisLayer() : '');
+  let html = `<defs>${mapDefs}</defs>` + bg + decor + washes + (mapGuides ? mapAxisLayer() : '');
 
   if (n === 0) {
     html += `<text class="map-empty-label" x="${MAP_VB_W/2}" y="${MAP_VB_H/2}">Add a task to raise your first peak</text>`;
