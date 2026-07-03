@@ -121,6 +121,24 @@ test('sanitizeTasks neutralizes a malicious sync id / categoryId and keeps clean
   expect(out.some(t => String(t.categoryId).includes('<'))).toBe(false);
 });
 
+test('sanitizeHistory rejects a forged id and coerces numeric fields over sync', async ({ page }) => {
+  const out = await page.evaluate(() => {
+    const evil = [
+      // id breaks out of onclick="deleteHistory('${h.id}')"
+      { id: "');alert(1)//", name: 'pwn', completedAt: 1700000000000, mins: 25, sessions: 1, secsSpent: 60 },
+      // mins is a markup string rendered raw into a text node via innerHTML
+      { id: 'h_1', name: 'text ctx', completedAt: 1700000000001, mins: '<img src=x onerror=alert(1)>', sessions: 2, secsSpent: 120 },
+      // a clean row survives with numbers intact
+      { id: 'h_2', name: 'real', completedAt: 1700000000002, mins: 45, sessions: 3, secsSpent: 300 },
+    ];
+    return sanitizeHistory(evil).map(h => ({ id: h.id, mins: h.mins, minsType: typeof h.mins, sessions: h.sessions }));
+  });
+  expect(out.find(h => h.id === "');alert(1)//")).toBeUndefined(); // forged id dropped
+  expect(out.every(h => h.minsType === 'number')).toBe(true);      // mins always numeric
+  expect(out.find(h => h.id === 'h_1').mins).toBe(0);              // markup string → 0
+  expect(out.find(h => h.id === 'h_2')).toMatchObject({ mins: 45, sessions: 3 });
+});
+
 // Map view: the duration ruler auto-fits the day (peaks are placed by their own
 // duration, so content extent = the longest single task) and never below a 2h floor.
 const seedMins = (mins) => mins.map((m, i) => ({ id: 1000 + i, name: 't' + i, mins: m, done: false, categoryId: null }));

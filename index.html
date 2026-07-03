@@ -2247,7 +2247,7 @@ function applyRemote(d) {
   syncSuppress = true;
   try {
     if (Array.isArray(d.tasks))      tasks      = sanitizeTasks(d.tasks);
-    if (Array.isArray(d.history))    history    = d.history;
+    if (Array.isArray(d.history))    history    = sanitizeHistory(d.history);
     if (Array.isArray(d.categories)) categories = sanitizeCategories(d.categories);
     if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; minsFocusedToday = d.stats.minsFocusedToday || 0; focusedDay = d.stats.focusedDay || ''; }
     // Re-parent any task whose categoryId points to a category that isn't in the
@@ -2370,13 +2370,8 @@ function loadAll() {
   const validCatIds = new Set(categories.map(c => c.id));
   tasks.forEach(t => { if (t.categoryId && !validCatIds.has(t.categoryId)) t.categoryId = null; });
 
-  // ── Sanitize: remove duplicate history entries ──
-  const seenHist = new Set();
-  history = history.filter(h => {
-    if (seenHist.has(h.id)) return false;
-    seenHist.add(h.id);
-    return h && h.name && h.completedAt;
-  });
+  // ── Sanitize: drop malformed/unsafe/duplicate history rows, coerce numerics ──
+  history = sanitizeHistory(history);
 
   // Seed newId() past every existing id so it can't collide even if the system
   // clock moved backward since those ids were minted (also handles legacy float
@@ -5460,6 +5455,30 @@ function sanitizeTasks(arr) {
     t.id = id;
     t.categoryId = (t.categoryId == null) ? null : safeId(t.categoryId);
     out.push(t);
+  });
+  return out;
+}
+
+// Shared history sanitizer for BOTH loadAll() and the applyRemote() sync path.
+// History rows are untrusted over sync and render into HTML/JS contexts at display
+// time: id into onclick="deleteHistory('${h.id}')", and mins/sessions/secsSpent into
+// text nodes via innerHTML (a markup string in a text node still executes). So:
+// require a string name + a completedAt, reject rows whose id isn't a safe token
+// (ids are minted as 'h_<n>'), dedupe by id, and coerce every numeric field.
+function sanitizeHistory(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Set();
+  const out = [];
+  arr.forEach(h => {
+    if (!h || typeof h.name !== 'string' || !h.name) return;
+    if (safeId(h.id) === null || seen.has(h.id)) return;
+    h.mins        = Number(h.mins) || 0;
+    h.sessions    = Number(h.sessions) || 0;
+    h.secsSpent   = Number(h.secsSpent) || 0;
+    h.completedAt = Number(h.completedAt) || 0;
+    if (h.completedAt === 0) return; // must carry a real completion timestamp
+    seen.add(h.id);
+    out.push(h);
   });
   return out;
 }
