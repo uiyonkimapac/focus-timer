@@ -13,8 +13,8 @@
 //  - Everything else (notably *.supabase.co API/realtime) is NEVER
 //    intercepted; non-GET requests pass straight through.
 
-const CACHE = 'focus-timer-v1';
-const RUNTIME = 'focus-timer-runtime-v1';
+const CACHE = 'focus-timer-v2';
+const RUNTIME = 'focus-timer-runtime-v2';
 const PRECACHE = [
   './',
   './index.html',
