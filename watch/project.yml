@@ -1,0 +1,55 @@
+# XcodeGen spec — regenerate the Xcode project with:  xcodegen -s watch/project.yml
+# (run from the repo root, or cd watch && xcodegen)
+name: FocusTimerWatch
+options:
+  bundleIdPrefix: com.uiyonkim
+  deploymentTarget:
+    iOS: "16.0"
+    watchOS: "9.0"
+  xcodeVersion: "15.0"
+
+targets:
+  # Minimal iPhone companion: its only job is signing the pair and letting you
+  # set the sync code, which it beams to the watch over WatchConnectivity.
+  FocusTimerPhone:
+    type: application
+    platform: iOS
+    sources: [Phone, Shared]
+    dependencies:
+      - target: FocusTimerWatchApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.uiyonkim.focustimer
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+    info:
+      path: Phone/Info.plist
+      properties:
+        CFBundleDisplayName: FT Watch Setup
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+
+  # The watch app proper (modern single-target watchOS app).
+  FocusTimerWatchApp:
+    type: application
+    platform: watchOS
+    sources: [Watch, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.uiyonkim.focustimer.watchkitapp
+        TARGETED_DEVICE_FAMILY: "4"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+    info:
+      path: Watch/Info.plist
+      properties:
+        CFBundleDisplayName: Focus Timer
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.uiyonkim.focustimer
