@@ -4664,13 +4664,18 @@ function renderMapTimePopover() {
   const el = mapTimePop.el, id = mapTimePop.id;
   const t = tasks.find(x => x.id === id);
   if (!t || t.done) { closeMapTimePopover(); return; }
+  // Rebuilding replaces the innerHTML wholesale — if a rename is in flight
+  // (e.g. the user hits +5 mid-edit), commit it first instead of losing it.
+  // Safe against re-entry: the commit's own render call is guarded by `done`.
+  const editing = el.querySelector('.map-pop-name-input');
+  if (editing) editing.blur();
   // Compact: just a −5 / value / +5 stepper (clamped to the spent-time floor),
   // no preset chip grid. Rows are stacked so the action row slots in below.
   el.innerHTML =
       // Name row is click-to-rename (whole row = wide target); the faint pencil
       // is the affordance, same glyph as the List View's rename button.
       `<div class="map-pop-name-row" onclick="mapPopEditName()" title="Click to rename">`
-    +   `<div class="map-pop-name">${esc(mapTrunc(t.name, 34))}</div>`
+    +   `<div class="map-pop-name" title="${esc(t.name)}">${esc(mapTrunc(t.name, 34))}</div>`
     +   `<button type="button" class="map-pop-edit" aria-label="Rename task">${EDIT_SVG}</button>`
     + `</div>`
     + `<div class="map-pop-row map-pop-stepper">`
@@ -4750,7 +4755,8 @@ function mapPopNotToday() {
 // blurs the input first → the edit still commits (never silently lost).
 function mapPopEditName() {
   if (!mapTimePop) return;
-  const t = tasks.find(x => x.id === mapTimePop.id);
+  const id = mapTimePop.id;
+  const t = tasks.find(x => x.id === id);
   if (!t || t.done) return;
   const row = mapTimePop.el.querySelector('.map-pop-name-row');
   if (!row || row.querySelector('input')) return; // already editing
@@ -4758,6 +4764,7 @@ function mapPopEditName() {
   input.type = 'text';
   input.className = 'map-pop-name-input';
   input.value = t.name;
+  input.maxLength = 100; // same cap as every other task-name input
   input.setAttribute('aria-label', 'Rename task');
   row.replaceChildren(input);
   input.focus(); input.select();
@@ -4766,11 +4773,22 @@ function mapPopEditName() {
   const finish = (save) => {
     if (done) return; done = true;
     const name = (input.value || '').trim();
-    if (save && name && name !== t.name) {
-      t.name = name;
+    // Re-find by id: a realtime sync can swap the tasks array mid-edit, and the
+    // task may have been completed/deleted remotely — never write to a stale ref.
+    const cur = tasks.find(x => x.id === id);
+    if (save && cur && !cur.done && name && name !== cur.name) {
+      cur.name = name;
       saveAll();
-      if (t.id === activeId) renderActivePill();
-      renderMap(); // ruler frozen while the popover is open — only the label redraws
+      if (id === activeId) renderActivePill();
+      if (mapTimePop) {
+        renderMap(); // popover open → ruler frozen, no gesture in flight: safe to redraw now
+      } else {
+        // Teardown path (outside tap closed the popover mid-edit): a pointer
+        // gesture may be starting, and drags hold live refs into the SVG — a
+        // synchronous renderMap here would detach them. Defer, and skip if a
+        // drag is in flight (its own pointerup re-renders).
+        requestAnimationFrame(() => { if (!mapDrag && !mapTimePop) renderMap(); });
+      }
     }
     renderMapTimePopover(); // restore the name row (no-op if the popover closed)
   };
@@ -4786,6 +4804,12 @@ function closeMapTimePopover() {
   if (!mapTimePop) return;
   const el = mapTimePop.el;
   mapTimePop = null;
+  // Flush an in-flight rename BEFORE teardown: browsers don't reliably fire
+  // blur when a focused element is removed from the DOM, and typed text must
+  // never be silently lost. blur() here runs the commit synchronously (its
+  // render is deferred — see mapPopEditName — so no mid-gesture DOM swap).
+  const editing = el.querySelector('.map-pop-name-input');
+  if (editing) editing.blur();
   if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 

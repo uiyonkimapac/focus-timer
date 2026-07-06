@@ -437,6 +437,79 @@ test('map time popover renames the task inline (Enter commits, Esc cancels, pers
   expect(persisted).toBe('Summit route'); // saveAll persisted the rename
 });
 
+test('map popover rename is never lost on teardown and never writes stale refs (redteam)', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Original', mins: 25 }]);
+  await page.evaluate(() => {
+    setViewMode('map');
+    openMapTimePopover(tasks[0].id);
+    mapPopEditName();
+  });
+  const input = page.locator('.map-time-pop .map-pop-name-input');
+  // Same 100-char cap as every other task-name input.
+  await expect(input).toHaveAttribute('maxlength', '100');
+  // Teardown mid-edit (what an outside tap does): the typed text must COMMIT,
+  // not vanish — browsers don't reliably blur elements removed from the DOM.
+  await input.fill('Typed then tapped away');
+  let r = await page.evaluate(() => {
+    closeMapTimePopover();
+    return { name: tasks[0].name, popGone: !document.querySelector('.map-time-pop') };
+  });
+  expect(r.name).toBe('Typed then tapped away');
+  expect(r.popGone).toBe(true);
+  // Sync-swap race: a realtime push replaces the tasks array mid-edit. The
+  // commit must land on the CURRENT object (found by id), not the stale ref.
+  await page.evaluate(() => {
+    openMapTimePopover(tasks[0].id);
+    mapPopEditName();
+  });
+  await input.fill('Post-sync name');
+  r = await page.evaluate(() => {
+    const id = tasks[0].id;
+    tasks = tasks.map(t => ({ ...t }));    // simulate applyRemote swapping objects
+    document.querySelector('.map-pop-name-input').blur();
+    return { name: tasks.find(t => t.id === id).name };
+  });
+  expect(r.name).toBe('Post-sync name');
+  // And if the task was completed remotely mid-edit, the rename is dropped
+  // (no zombie edits to finished work) without throwing.
+  await page.evaluate(() => { tasks[0].done = false; renderTasks(); openMapTimePopover(tasks[0].id); mapPopEditName(); });
+  await input.fill('Should not apply');
+  r = await page.evaluate(() => {
+    tasks[0].done = true;
+    document.querySelector('.map-pop-name-input').blur();
+    return { name: tasks[0].name };
+  });
+  expect(r.name).toBe('Post-sync name');
+});
+
+test('a hostile name entered via the popover stays inert in every sink (XSS)', async ({ page }) => {
+  const payload = '<img src=x onerror="window.__pwned=1">"><svg onload=window.__pwned=1>';
+  await seedTasks(page, [{ name: 'Innocent', mins: 25 }]);
+  await page.evaluate(() => {
+    setViewMode('map');
+    openMapTimePopover(tasks[0].id);
+    mapPopEditName();
+  });
+  const input = page.locator('.map-time-pop .map-pop-name-input');
+  await input.fill(payload);
+  await input.press('Enter');
+  const r = await page.evaluate(() => ({
+    pwned: window.__pwned || null,
+    // The popover legitimately contains icon SVGs (pencil, moon) — only markup
+    // born from the NAME would be an injection: any <img>, or a rogue element
+    // inside the name row / the SVG peak label.
+    injected: !!document.querySelector('img[src="x"], .map-pop-name *, #mapSvg .map-peak-label *'),
+    stored: tasks[0].name,
+    popName: document.querySelector('.map-pop-name').textContent,
+    listSafe: (setViewMode('list'), !document.querySelector('#taskList img[src="x"]') && !window.__pwned),
+  }));
+  expect(r.pwned).toBeNull();          // no handler ever executed
+  expect(r.injected).toBe(false);      // rendered as text, not markup
+  expect(r.stored.startsWith('<img')).toBe(true); // stored raw (data, not HTML)
+  expect(r.popName.includes('<img')).toBe(true);  // shown escaped in the popover
+  expect(r.listSafe).toBe(true);       // list view renders it inert too
+});
+
 test('map time popover "Not today" pushes the peak to tomorrow (survives reload)', async ({ page }) => {
   await seedTasks(page, [{ name: 'Deep work' }, { name: 'Stays' }]);
   const before = await page.evaluate(() => {
