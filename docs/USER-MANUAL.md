@@ -1,6 +1,6 @@
 # Now This — User Manual
 
-*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-18.*
+*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-27.*
 
 **Now This** is an ADHD-first focus app: a Pomodoro timer + task list for **execution**, and a spatial "Mountain Board" map for **planning**. The name is the whole philosophy — *now this, this one thing*. This manual covers everything, desktop and mobile.
 
@@ -17,7 +17,7 @@
 
 ### The screen
 - **Left panel** (top on phones): the **logo + theme toggle + sync badge**, the timer (mode buttons, ring, controls), the selected task's notes, and today's three stat cards.
-- **Main area:** the **Tasks** tab (List or Map view) and the **Completed** tab, with **Reset Data** and **Save Report** in the top-right.
+- **Main area:** the **Tasks** tab (List or Map view) and the **Completed** tab, with **Reset Data** and **Save Report** in the top-right. *On phones, Reset Data moves to a recessive button at the bottom of the list so it's harder to tap by accident.*
 
 ---
 
@@ -47,7 +47,7 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 ## 3. Tasks (List view `≡`)
 
 ### Adding tasks
-- Type a name, set the time in the **time box** (type like `25m`, or use the **1m–1h quick chips**), optionally pick a category → **+ Add**.
+- Type a name, pick a length from the **minutes dropdown** (1 min–2 hr), optionally choose a category → **+ Add**. *On phones the add box is collapsed behind a **+ Add a task** button so your list stays in view — tap it to open (it focuses the field and stays open for several adds).*
 - **🧠 Dump Tasks** — the brain-dump door. Paste or type *many lines at once* (one task per line; blank lines skipped, duplicates ignored). Works great for pasting from Google Tasks or notes. Get it out of your head first, organize later.
 
 ### Anatomy of a task card
@@ -64,7 +64,8 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 
 ### Categories
 - Create them from the category dropdown (10-color picker). Each group header shows a count + total time remaining.
-- **Collapse** a group by clicking its header; **rename/recolor** via the color dot; **reorder lanes** by dragging the header (⋮⋮ grip).
+- **Collapse** a group by clicking its header; **reorder lanes** by dragging the header (⋮⋮ grip).
+- **Rename, recolor, or delete** a category from its **color dot** → the **Edit category** popup. Delete is a deliberate button there (it asks first); a deleted category's tasks move to **Uncategorized** — nothing is lost.
 - Drag a task **onto another group's header** (or onto a task inside it) to move it there.
 - "Uncategorized" stays anchored at the bottom.
 
@@ -73,16 +74,26 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 |---|---|
 | **≡ List / ⛰ Map** | Switch views (same tasks, two perspectives) |
 | **⊞ Guides** | (Map only) toggle the axis guides |
-| **⛶ Full map** | (Map only) hide the left panel so the map fills the whole window |
+| **⛶ Full map** | (Map only) **maximize the board** — hides the timer panel *and* the header/tabs/add-row above it, so the map fills the window. Toggle off to bring them back. |
 | **◉ Focus Mode** | Hide everything except the current task — tunnel vision on demand |
-| **✓ Clear Done** | Archive all completed tasks |
+| **⟳ Run** | Auto-loop your list for each task's set time, with optional breaks (see **Run mode** below) |
 | **🧠 Dump Tasks** | Bulk-add (see above) |
+
+*(Clear completed tasks from the **Completed** tab — see §5.)*
+
+### Run mode (⟳)
+Turn your list into a guided session. **⟳ Run** opens a setup sheet where you:
+- pick a **break style** between tasks — **None / Short / Long**;
+- **uncheck** any tasks you want to skip this run;
+- **drag the ⋮⋮ grip** to reorder the queue (each row shows its time and, if it has one, its **category name**).
+
+**Start Run →** then works each task for its set time, in order, full-screen, dropping in the breaks you chose.
 
 In the tab bar (top-right of the main area):
 | Button | What it does |
 |---|---|
 | **Save Report** | Download a formatted **HTML** report — choose Active / Completed / Stats and a filename |
-| **Reset Data** | Wipe all tasks and history (asks first — Save Report beforehand if in doubt) |
+| **Reset Data** | Wipe all tasks and history (asks first — Save Report beforehand if in doubt). *On phones it lives at the bottom of the list, not the top bar.* |
 | **☽ / ☀** (in the logo row) | Dark (ink) / light (parchment) theme |
 
 ---
@@ -96,8 +107,8 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 - **X axis** = duration along the hour ruler (1h–8h ticks).
 - **Y axis** = priority (the center vertical axis — higher is more important).
 - **Red tint past 8h** = you've planned more than a workday. Just a signal.
-- Under each peak: its name and time. Under each ridge: the category name.
-- **⛶ Full map** hides the left panel for a bigger canvas; **⊞ Guides** toggles the axis lines.
+- **Names stay visible** under every peak so the board reads at a glance; the per-task **minutes** appear when a peak is active, your MIT, selected, or hovered (kept on-demand so a busy board doesn't get cluttered). Under each ridge: the category name.
+- **⛶ Full map** maximizes the board (hides the timer panel and the header/tabs/add-row above it); **⊞ Guides** toggles the axis lines. *On phones, Map view already hides the list chrome so the board owns the screen.*
 
 ### Desktop controls
 | Action | How |
@@ -109,11 +120,13 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 | Group two tasks | Drop one peak **onto** another (it glows green when they'd merge) |
 | Delete / duplicate | Drag to the **🗑 trash** / **⧉ copy** zones that appear at the bottom |
 | Add a task | **Double-click** empty ground |
-| Rename | **Double-click** a peak · **click** a range's name |
+| Retune a task in place | **Click** a peak → an etched popover: **−5 / +5** minutes, **click its name to rename** (Enter saves, Esc cancels), or **🌙 Not today** to snooze |
+| Rename | **Double-click** a peak · **click** a range's name · or via the peak popover |
 | Move a whole range | Drag the ridge/name band |
-| Multi-select | Drag a box on empty ground · **Shift/⌘-click** to toggle peaks · totals appear in the HUD |
+| Deselect | **Click empty ground** — clears the active peak and any multi-selection (a *running* timer is left alone) |
+| Multi-select | Drag a box on empty ground (replaces the selection) · hold **Ctrl/⌘/Shift while dragging** to *add* the boxed peaks to it · **Ctrl/⌘-click** a peak to toggle it · running totals (count · categories · time) show in the HUD |
 | Copy / paste / delete selection | **⌘/Ctrl+C**, **⌘/Ctrl+V**, **Delete** · **Esc** clears/cancels |
-| Pan | **Ctrl/⌘ + drag** (cursor becomes a hand) |
+| Pan | **Middle-mouse drag** (Ctrl/⌘ now drives selection, not panning) |
 | Zoom | Mouse wheel, trackpad pinch, or the **+/−** buttons (100% = the whole world, up to 400%) |
 
 ### Touch controls (phone/tablet)
@@ -121,7 +134,7 @@ Switch with **⛰ Map**. Every active task is a hand-etched **peak**; categories
 |---|---|
 | Pan | One-finger drag on empty ground |
 | Zoom | Two-finger pinch |
-| Select | Tap a peak |
+| Select | Tap a peak (also opens the popover: **−5/+5** time, **tap the name to rename**, **Not today**) |
 | Move / recategorize / group / trash / copy | Drag a peak (same rules as desktop) |
 | **Add a task** | **Long-press empty ground** (½s — a tick vibration confirms), release |
 | **Rename a task** | **Long-press a peak**, release |
