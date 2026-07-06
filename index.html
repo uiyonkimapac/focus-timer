@@ -625,10 +625,29 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
   box-shadow: 0 10px 30px rgba(0,0,0,0.42);
 }
 .map-time-pop.docked { left: 8px; right: 8px; width: auto; max-width: none; }
+.map-pop-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; cursor: text; }
 .map-pop-name {
   font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
   font-size: 19px; line-height: 1.1; color: var(--map-ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+}
+.map-pop-edit {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; background: none; border: none;
+  color: var(--map-ink); opacity: 0.4; cursor: pointer; transition: opacity 0.12s;
+}
+.map-pop-name-row:hover .map-pop-edit, .map-pop-edit:focus-visible { opacity: 0.9; }
+.map-pop-edit svg { width: 16px; height: 16px; }
+/* Inline rename — same etched voice as the name it replaces: serif, ink,
+   hairline underline instead of a boxy field. */
+.map-pop-name-input {
+  flex: 1; min-width: 180px; width: 100%;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  font-size: 19px; line-height: 1.1; color: var(--map-ink);
+  background: color-mix(in srgb, var(--map-ink) 6%, transparent);
+  border: none; border-bottom: 1px solid color-mix(in srgb, var(--map-ink) 45%, transparent);
+  border-radius: 3px 3px 0 0; padding: 1px 4px 2px; outline: none;
 }
 .map-pop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .map-pop-stepper {
@@ -1409,6 +1428,8 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   .map-pop-step { min-height: 44px; min-width: 48px; font-size: 15px; }
   .map-pop-action { min-height: 44px; font-size: 14px; }
   .map-pop-name { font-size: 20px; }
+  .map-pop-name-input { font-size: 20px; }
+  .map-pop-edit { width: 36px; height: 36px; opacity: 0.6; } /* no hover on touch — keep it visible */
 
   /* Map view on phones (portrait too — previously only landscape got this):
      give the map the screen instead of burying it below a scroll. Hide the
@@ -4646,7 +4667,12 @@ function renderMapTimePopover() {
   // Compact: just a −5 / value / +5 stepper (clamped to the spent-time floor),
   // no preset chip grid. Rows are stacked so the action row slots in below.
   el.innerHTML =
-      `<div class="map-pop-name" title="${esc(t.name)}">${esc(mapTrunc(t.name, 34))}</div>`
+      // Name row is click-to-rename (whole row = wide target); the faint pencil
+      // is the affordance, same glyph as the List View's rename button.
+      `<div class="map-pop-name-row" onclick="mapPopEditName()" title="Click to rename">`
+    +   `<div class="map-pop-name">${esc(mapTrunc(t.name, 34))}</div>`
+    +   `<button type="button" class="map-pop-edit" aria-label="Rename task">${EDIT_SVG}</button>`
+    + `</div>`
     + `<div class="map-pop-row map-pop-stepper">`
     +   `<button type="button" class="map-pop-step" aria-label="5 minutes less" onclick="mapPopStep(-5)">&minus;5</button>`
     +   `<span class="map-pop-val" aria-live="polite">${esc(fmtMins(t.mins))}</span>`
@@ -4717,6 +4743,44 @@ function mapPopNotToday() {
   if (!t || t.done) { closeMapTimePopover(); return; }
   closeMapTimePopover();
   toggleNotToday(id);
+}
+// Rename from the popover — swap the name row for an inline input. Same commit
+// rule as mapRenamePeak (trim, ignore empty/unchanged, saveAll + renderMap);
+// commits on Enter/blur, cancels on Esc. Outside taps close the popover, which
+// blurs the input first → the edit still commits (never silently lost).
+function mapPopEditName() {
+  if (!mapTimePop) return;
+  const t = tasks.find(x => x.id === mapTimePop.id);
+  if (!t || t.done) return;
+  const row = mapTimePop.el.querySelector('.map-pop-name-row');
+  if (!row || row.querySelector('input')) return; // already editing
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'map-pop-name-input';
+  input.value = t.name;
+  input.setAttribute('aria-label', 'Rename task');
+  row.replaceChildren(input);
+  input.focus(); input.select();
+  positionMapTimePopover(); // the input widens the popover — keep it anchored
+  let done = false;
+  const finish = (save) => {
+    if (done) return; done = true;
+    const name = (input.value || '').trim();
+    if (save && name && name !== t.name) {
+      t.name = name;
+      saveAll();
+      if (t.id === activeId) renderActivePill();
+      renderMap(); // ruler frozen while the popover is open — only the label redraws
+    }
+    renderMapTimePopover(); // restore the name row (no-op if the popover closed)
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', e => {
+    e.stopPropagation(); // typing must never reach the map's copy/paste/delete keys
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('pointerdown', e => e.stopPropagation());
 }
 function closeMapTimePopover() {
   if (!mapTimePop) return;

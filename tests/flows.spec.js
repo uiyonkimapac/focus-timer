@@ -399,6 +399,44 @@ test('the map time popover clamps to time already spent and never below 5m', asy
   expect(res.val).toBe('15m');          // stepper display reflects the clamp
 });
 
+test('map time popover renames the task inline (Enter commits, Esc cancels, persists)', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Old name', mins: 25 }]);
+  await page.evaluate(() => {
+    setViewMode('map');
+    openMapTimePopover(tasks[0].id);
+    mapPopEditName();
+  });
+  // The name row swapped to an input, prefilled and focused.
+  const input = page.locator('.map-time-pop .map-pop-name-input');
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue('Old name');
+  // Esc cancels: name row returns, task untouched.
+  await input.press('Escape');
+  let r = await page.evaluate(() => ({
+    name: tasks[0].name,
+    rowText: document.querySelector('.map-time-pop .map-pop-name').textContent,
+  }));
+  expect(r.name).toBe('Old name');
+  expect(r.rowText).toBe('Old name');
+  // Edit again, type a new name, Enter commits everywhere (popover, peak label, storage).
+  await page.evaluate(() => mapPopEditName());
+  await input.fill('Summit route');
+  await input.press('Enter');
+  r = await page.evaluate(() => ({
+    name: tasks[0].name,
+    rowText: document.querySelector('.map-time-pop .map-pop-name').textContent,
+    peakLabel: document.querySelector('#mapSvg .map-peak-label').textContent,
+    popOpen: mapTimePop !== null,
+  }));
+  expect(r.name).toBe('Summit route');
+  expect(r.rowText).toBe('Summit route');
+  expect(r.peakLabel).toBe('Summit route');
+  expect(r.popOpen).toBe(true);         // renaming keeps the popover open
+  await page.reload();
+  const persisted = await page.evaluate(() => (tasks[0] || {}).name);
+  expect(persisted).toBe('Summit route'); // saveAll persisted the rename
+});
+
 test('map time popover "Not today" pushes the peak to tomorrow (survives reload)', async ({ page }) => {
   await seedTasks(page, [{ name: 'Deep work' }, { name: 'Stays' }]);
   const before = await page.evaluate(() => {
