@@ -84,11 +84,22 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 
 ### Run mode (⟳)
 Turn your list into a guided session. **⟳ Run** opens a setup sheet where you:
-- pick a **break style** between tasks — **None / Short / Long**;
 - **uncheck** any tasks you want to skip this run;
-- **drag the ⋮⋮ grip** to reorder the queue (each row shows its time and, if it has one, its **category name**).
+- **drag the ⋮⋮ grip** to reorder the queue (each row shows its time and, if it has one, its **category name**);
+- set breaks **per gap**: tap the thin line *between* two rows to cycle **— none / ☕ 5 min / 🌙 15 min** (the **Breaks (all gaps)** segment sets every gap at once, chips override individual ones).
 
-**Start Run →** then works each task for its set time, in order, full-screen, dropping in the breaks you chose.
+**Start Run →** works each task for its set time, in order, full-screen.
+
+**When a task's time runs out, nothing is taken from you.** The chime sounds, the clock flips to **−overtime** (amber, with a gentle re-chime at −5 min), and the timer keeps counting until *you* hit **✓ done** or **⏭ skip** — estimates are always wrong, and the overtime is tracked as real focused minutes. If you *want* Routinery-style auto-advance (hygiene routines: shower → teeth → dress), tick **Auto-advance when time's up** in setup; the choice is remembered.
+
+**When a break ends,** the run waits on a **Ready** screen ("Next: …") — the next task's clock starts only when you tap **Begin →**, so minutes never get billed to a climb you haven't started.
+
+### Routines (saved runs) ★
+Like Routinery: build the queue once, keep it forever.
+- **☆ Save as routine** (bottom-left of the Run sheet) snapshots the current queue — steps, minutes, per-gap breaks, the auto-advance setting — under a name you choose.
+- Saved routines appear as **cards at the top of the Run sheet**: tap one to start it, **✕** to delete. They sync across devices.
+- Starting a routine **creates its steps as real tasks** (grouped under a category named after the routine), so completions land in history and today's stats like any other task.
+- **Exit a run early** and the unfinished steps are tidied off your list automatically (an **Undo** toast brings them back) — the routine template itself is never touched. Finished steps stay in history.
 
 In the tab bar (top-right of the main area):
 | Button | What it does |

@@ -1825,10 +1825,13 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 <!-- RUN SETUP MODAL -->
 <div class="modal-overlay" id="runModal">
   <div class="modal" style="width:440px;">
-    <div class="modal-title">⟳ Today’s Run</div>
-    <div class="modal-sub">Work each task for its set time, in order — across categories. Reorder or uncheck to shape the run.</div>
+    <div class="modal-title">⟳ Run</div>
+    <!-- Saved routines (Routinery-style): tap to start; steps materialize as
+         real tasks so completions flow into history/stats like everything else. -->
+    <div class="routine-strip" id="runRoutines"></div>
+    <div class="modal-sub">Work each task for its set time, in order — across categories. Reorder or uncheck to shape the run. Tap the line between two tasks to set that gap's break.</div>
     <div class="run-toggle-row">
-      <span style="font-size:13px;color:var(--text);">Break between tasks</span>
+      <span style="font-size:13px;color:var(--text);">Breaks (all gaps)</span>
       <div class="run-seg" id="runBreakSeg">
         <button type="button" class="run-seg-btn" data-break="none" onclick="setRunBreak('none',this)">None</button>
         <button type="button" class="run-seg-btn sel" data-break="short" onclick="setRunBreak('short',this)">Short</button>
@@ -1836,7 +1839,12 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
       </div>
     </div>
     <div class="run-list" id="runTaskList"></div>
+    <label class="run-autoflow-row" title="Off: when time's up the timer keeps counting (overtime) until you hit ✓. On: completes and advances by itself — for hygiene-style routines.">
+      <input type="checkbox" id="runAutoFlow" onchange="setRunAutoFlow(this.checked)">
+      <span>Auto-advance when time's up <em>(otherwise runs overtime until you finish)</em></span>
+    </label>
     <div class="modal-actions">
+      <button class="btn-save-routine" onclick="saveRunAsRoutine()" title="Save this queue (steps, times, breaks) as a reusable routine">☆ Save as routine</button>
       <button class="btn-cancel" onclick="closeRunSetup()">Cancel</button>
       <button class="btn-confirm" onclick="startRunFromSetup()">Start Run →</button>
     </div>
@@ -2123,6 +2131,7 @@ const STORAGE_HISTORY    = 'focustimer_history';
 const STORAGE_STATS      = 'focustimer_stats';
 const STORAGE_SYNCCODE   = 'focustimer_synccode';
 const STORAGE_CATEGORIES = 'focustimer_categories';
+const STORAGE_ROUTINES   = 'focustimer_routines';
 
 // Vintage-cartographic category palette — muted mid-tones that read on both the
 // cream (light) and dark-parchment (dark) map. Existing categories keep their
@@ -2179,7 +2188,8 @@ function snapshotHash() {
   // Cheap fingerprint of the synced content. Used to detect "nothing changed
   // since last push" so the 30s periodic save doesn't bump dataTimestamp.
   return JSON.stringify(tasks) + '|' + JSON.stringify(history) + '|' +
-         JSON.stringify(categories) + '|' + sessionsDone + '|' + minsFocused;
+         JSON.stringify(categories) + '|' + JSON.stringify(routines) + '|' +
+         sessionsDone + '|' + minsFocused;
 }
 
 // ── STATE ──
@@ -2193,6 +2203,7 @@ let sessionsDone = 0, minsFocused = 0, sessionStartSecs = 0, elapsedSecs = 0;
 // today-scoped figure shown on the "Focused" stat card, rolled over at midnight.
 let minsFocusedToday = 0, focusedDay = '';
 let tasks = [], history = [], categories = [];
+let routines = []; // saved run templates (Routinery-style) — synced like tasks
 let uncatCollapsed = false;
 let activeId = null;
 let importDefaultMin = 25, quickMin = 25;
@@ -2238,6 +2249,7 @@ function saveAll() {
     localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
     localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused, minsFocusedToday, focusedDay }));
     localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
+    localStorage.setItem(STORAGE_ROUTINES, JSON.stringify(routines));
     storageFullNotified = false; // a clean write clears the warning state
   } catch(e) {
     // Quota exceeded (or private-mode write block): the user MUST know their
@@ -2268,7 +2280,7 @@ async function pushToCloud() {
   const payload = {
     sync_id: syncCode,
     data: {
-      tasks, history, categories,
+      tasks, history, categories, routines,
       stats: { sessionsDone, minsFocused, minsFocusedToday, focusedDay },
       ts: Date.now(),
       dataTimestamp,
@@ -2354,6 +2366,7 @@ function applyRemote(d) {
     if (Array.isArray(d.tasks))      tasks      = sanitizeTasks(d.tasks);
     if (Array.isArray(d.history))    history    = sanitizeHistory(d.history);
     if (Array.isArray(d.categories)) categories = sanitizeCategories(d.categories);
+    if (Array.isArray(d.routines))   routines   = sanitizeRoutines(d.routines);
     if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; minsFocusedToday = d.stats.minsFocusedToday || 0; focusedDay = d.stats.focusedDay || ''; }
     // Re-parent any task whose categoryId points to a category that isn't in the
     // synced set (deleted, or a forged id that sanitizeTasks nulled) → Uncategorized.
@@ -2374,6 +2387,7 @@ function applyRemote(d) {
       localStorage.setItem(STORAGE_HISTORY, JSON.stringify(history));
       localStorage.setItem(STORAGE_STATS, JSON.stringify({ sessionsDone, minsFocused, minsFocusedToday, focusedDay }));
       localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories));
+      localStorage.setItem(STORAGE_ROUTINES, JSON.stringify(routines));
     } catch(e) { console.warn('sync pull: local persist failed', e); notifyStorageFull(); }
     renderTasks(); renderHistory(); renderActivePill(); updateStats(); renderDots();
   } finally {
@@ -2457,9 +2471,11 @@ function loadAll() {
     const h = localStorage.getItem(STORAGE_HISTORY);
     const s = localStorage.getItem(STORAGE_STATS);
     const c = localStorage.getItem(STORAGE_CATEGORIES);
+    const r = localStorage.getItem(STORAGE_ROUTINES);
     if (t) tasks = JSON.parse(t);
     if (h) history = JSON.parse(h);
     if (c) categories = JSON.parse(c);
+    if (r) routines = JSON.parse(r);
     if (s) { const p = JSON.parse(s); sessionsDone = p.sessionsDone||0; minsFocused = p.minsFocused||0; minsFocusedToday = p.minsFocusedToday||0; focusedDay = p.focusedDay||''; }
     // restore version state — survives reloads so a clear stays sticky
     dataTimestamp = parseInt(localStorage.getItem(STORAGE_DATATS) || '0', 10) || 0;
@@ -2486,6 +2502,9 @@ function loadAll() {
 
   // ── Sanitize: drop malformed/unsafe/duplicate history rows, coerce numerics ──
   history = sanitizeHistory(history);
+
+  // ── Sanitize routines (same guard for local load and sync ingestion) ──
+  routines = sanitizeRoutines(routines);
 
   // Seed newId() past every existing id so it can't collide even if the system
   // clock moved backward since those ids were minted (also handles legacy float
@@ -5541,7 +5560,7 @@ function resetAllData() {
     : '';
   if (!confirm('This will clear ALL tasks and history from this browser.' + syncMsg +
     '\n\nMake sure to Save Report first if you want to keep your data.\n\nContinue?')) return;
-  tasks = []; history = []; categories = [];
+  tasks = []; history = []; categories = []; routines = [];
   sessionsDone = 0; minsFocused = 0; minsFocusedToday = 0; focusedDay = ''; activeId = null;
   remaining = 25*60; totalSec = 25*60; mode = 'focus';
   clearInterval(ticker); running = false;
@@ -5747,6 +5766,35 @@ function sanitizeHistory(arr) {
     out.push(h);
   });
   return out;
+}
+
+// Shared routine sanitizer for BOTH loadAll() and applyRemote(). Routines sync
+// like tasks, so a hostile peer can forge them: ids go into onclick JS-string
+// contexts (safeId), names/step names are rendered (escaped at render, but
+// still must be strings), and step minutes drive timers (coerce + clamp).
+function sanitizeRoutines(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Set();
+  const out = [];
+  arr.forEach((r, i) => {
+    if (!r || safeId(r.id) === null || seen.has(r.id)) return;
+    if (typeof r.name !== 'string' || !r.name.trim()) return;
+    if (!Array.isArray(r.steps) || !r.steps.length) return;
+    r.name = r.name.slice(0, 60);
+    r.steps = r.steps.slice(0, 50).filter(s =>
+      s && typeof s.name === 'string' && s.name.trim()
+    ).map(s => ({
+      name: s.name.slice(0, 100),
+      mins: Math.min(480, Math.max(1, Math.round(Number(s.mins) || 25))),
+      gapAfter: (s.gapAfter === 'short' || s.gapAfter === 'long') ? s.gapAfter : 'none',
+    }));
+    if (!r.steps.length) return;
+    r.autoFlow = r.autoFlow === true;
+    if (typeof r.order !== 'number') r.order = i;
+    seen.add(r.id);
+    out.push({ id: r.id, name: r.name, steps: r.steps, autoFlow: r.autoFlow, order: r.order });
+  });
+  return out.slice(0, 100);
 }
 
 // ── PHASE 1: DAY HELPERS ──
@@ -5968,24 +6016,45 @@ function toggleTimerPanel() {
 }
 
 // ── RUN (loop) setup ──
-let runSetupOrder = [], runExcluded = {}, runBreakMode = 'short';
+// runGaps: per-gap break overrides keyed by the id of the task the gap FOLLOWS
+// ('none'|'short'|'long'); anything unset falls back to runBreakMode. The
+// global segment is "set all gaps" — choosing it wipes the overrides.
+let runSetupOrder = [], runExcluded = {}, runBreakMode = 'short', runGaps = {};
+let runAutoFlow = false;
+try { runAutoFlow = localStorage.getItem('focustimer_runAutoFlow') === '1'; } catch (e) {}
 function setRunBreak(m, btn) {
   runBreakMode = m;
+  runGaps = {}; // the segment sets ALL gaps; per-gap chips re-override from here
   var seg = document.getElementById('runBreakSeg');
   if (seg) seg.querySelectorAll('.run-seg-btn').forEach(function (b) { b.classList.remove('sel'); });
   if (btn) btn.classList.add('sel');
+  renderRunSetup();
+}
+function setRunAutoFlow(on) {
+  runAutoFlow = !!on;
+  try { localStorage.setItem('focustimer_runAutoFlow', runAutoFlow ? '1' : '0'); } catch (e) {}
+}
+function runGapFor(id) { return runGaps[id] !== undefined ? runGaps[id] : runBreakMode; }
+function cycleRunGap(id) {
+  var next = { none: 'short', short: 'long', long: 'none' };
+  runGaps[id] = next[runGapFor(id)] || 'none';
+  renderRunSetup();
 }
 function openRunSetup() {
-  runSetupOrder = tasks.filter(function (t) { return !t.done; }).map(function (t) { return t.id; });
+  runSetupOrder = tasks.filter(function (t) { return !t.done && !isHiddenToday(t); }).map(function (t) { return t.id; });
   runExcluded = {};
   runBreakMode = 'short';
+  runGaps = {};
   var bseg = document.getElementById('runBreakSeg');
   if (bseg) bseg.querySelectorAll('.run-seg-btn').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-break') === 'short'); });
+  var af = document.getElementById('runAutoFlow');
+  if (af) af.checked = runAutoFlow;
+  renderRunRoutines();
   renderRunSetup();
   document.getElementById('runModal').classList.add('open');
 }
 function closeRunSetup() { document.getElementById('runModal').classList.remove('open'); }
-function runToggleInc(id, on) { if (on) delete runExcluded[id]; else runExcluded[id] = true; }
+function runToggleInc(id, on) { if (on) delete runExcluded[id]; else runExcluded[id] = true; renderRunSetup(); }
 // Drag-to-reorder the run queue. Delegated off #runTaskList so it survives the
 // innerHTML rebuild on every renderRunSetup(); works for mouse, touch and pen.
 let runDrag = null;
@@ -6059,22 +6128,100 @@ function renderRunSetup() {
       ? '<span class="run-name-wrap"><span class="run-row-name">' + esc(t.name) + '</span>'
           + '<span class="run-cat-kicker" style="color:' + cat.color + '">' + esc(cat.name) + '</span></span>'
       : '<span class="run-row-name">' + esc(t.name) + '</span>';
-    return '<div class="run-row" data-id="' + t.id + '">'
+    var row = '<div class="run-row" data-id="' + t.id + '">'
       + '<input type="checkbox" class="run-inc" ' + (runExcluded[id] ? '' : 'checked') + ' onchange="runToggleInc(' + t.id + ',this.checked)">'
       + dot
       + nameBlock
       + '<span class="run-row-time">' + fmtSecs(t.secsRemaining) + '</span>'
       + '<span class="run-grip" title="Drag to reorder">⋮⋮</span>'
       + '</div>';
+    // The tappable gap chip AFTER this row (none after the final row). Dimmed
+    // when this row is unchecked — its gap won't exist in the session.
+    if (i < runSetupOrder.length - 1) {
+      var g = runGapFor(id);
+      var lbl = g === 'none' ? '— no break —' : (g === 'long' ? '🌙 15 min break' : '☕ 5 min break');
+      row += '<div class="run-gap' + (g !== 'none' ? ' has-break' : '') + (runExcluded[id] ? ' dim' : '')
+        + '" onclick="cycleRunGap(' + t.id + ')" title="Tap to change this gap: none → short → long">' + lbl + '</div>';
+    }
+    return row;
   }).join('');
   runReorderBind();
 }
 function startRunFromSetup() {
   var ids = runSetupOrder.filter(function (id) { return !runExcluded[id]; });
   if (!ids.length) return;
-  var breaks = runBreakMode;
+  var gaps = ids.map(function (id) { return runGapFor(id); });
   closeRunSetup();
-  Sanctuary.startRun(ids, breaks);
+  Sanctuary.startRun(ids, { gaps: gaps, autoFlow: runAutoFlow });
+}
+
+// ── ROUTINES (saved runs, Routinery-style) ──
+// A routine is a durable TEMPLATE — named steps with minutes and per-gap
+// breaks — separate from the ephemeral task list. Starting one materializes
+// its steps as real tasks (source 'routine', grouped under a category named
+// after the routine) so completions flow through history/stats like any task.
+// Unfinished materialized steps are removed when the run ends (with Undo):
+// the routine is the durable thing, instances are disposable.
+function renderRunRoutines() {
+  var strip = document.getElementById('runRoutines');
+  if (!strip) return;
+  var sorted = routines.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+  strip.innerHTML = sorted.map(function (r) {
+    var total = r.steps.reduce(function (s, x) { return s + x.mins; }, 0);
+    return '<div class="routine-card" onclick="startRoutine(\'' + r.id + '\')" title="Start this routine">'
+      + '<span class="routine-play">▶</span>'
+      + '<span class="routine-name">' + esc(r.name) + '</span>'
+      + '<span class="routine-meta">' + r.steps.length + ' step' + (r.steps.length === 1 ? '' : 's') + ' · ' + fmtMins(total) + '</span>'
+      + '<button type="button" class="routine-del" onclick="event.stopPropagation();deleteRoutine(\'' + r.id + '\')" title="Delete routine">✕</button>'
+      + '</div>';
+  }).join('');
+}
+function saveRunAsRoutine() {
+  var ids = runSetupOrder.filter(function (id) { return !runExcluded[id]; });
+  if (!ids.length) return;
+  var name = (prompt('Name this routine (e.g. Morning startup):', '') || '').trim().slice(0, 60);
+  if (!name) return;
+  var steps = ids.map(function (id) {
+    var t = tasks.find(function (x) { return x.id === id; });
+    return { name: t.name, mins: t.mins, gapAfter: runGapFor(id) };
+  });
+  routines.push({
+    id: 'r_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+    name: name, steps: steps, autoFlow: runAutoFlow, order: routines.length,
+  });
+  saveAll();
+  renderRunRoutines();
+}
+function deleteRoutine(rid) {
+  var r = routines.find(function (x) { return x.id === rid; });
+  if (!r) return;
+  if (!confirm('Delete routine "' + r.name + '"?')) return;
+  routines = routines.filter(function (x) { return x.id !== rid; });
+  saveAll();
+  renderRunRoutines();
+}
+function startRoutine(rid) {
+  var r = routines.find(function (x) { return x.id === rid; });
+  if (!r || !r.steps.length) return;
+  // Steps live under a category named after the routine (find or create).
+  var cat = categories.find(function (c) { return c.name.toLowerCase() === r.name.toLowerCase(); });
+  if (!cat) {
+    cat = { id: 'c_' + Date.now() + '_' + Math.floor(Math.random() * 1e6), name: r.name,
+            color: CAT_COLORS[categories.length % CAT_COLORS.length], order: categories.length, collapsed: false };
+    categories.push(cat);
+  }
+  var ids = [], gaps = [];
+  r.steps.forEach(function (s) {
+    // Same shape addTask() mints — keep in sync with the task constructor.
+    var t = { id: newId(), name: s.name, mins: s.mins, secsRemaining: s.mins * 60,
+              done: false, sessions: 0, secsSpent: 0, source: 'routine', createdAt: Date.now(),
+              notes: '', categoryId: cat.id, isMIT: false,
+              notTodayDayKey: null, lastHiddenDayKey: null, notTodayStreak: 0 };
+    tasks.push(t); ids.push(t.id); gaps.push(s.gapAfter || 'none');
+  });
+  renderTasks(); updateStats(); saveAll();
+  closeRunSetup();
+  Sanctuary.startRun(ids, { gaps: gaps, autoFlow: !!r.autoFlow, materialized: ids });
 }
 
 // ── FOCUS SANCTUARY (full-screen focus mode) ──
@@ -6154,7 +6301,7 @@ window.Sanctuary = (function () {
   function renderQueue() {
     var strip = $('sxQueue'); if (!strip) return;
     if (!run) { strip.style.display = 'none'; return; }
-    var start = (run.phase === 'break') ? run.idx + 1 : run.idx;
+    var start = (run.phase === 'break' || run.phase === 'ready') ? run.idx + 1 : run.idx;
     var html = '';
     for (var i = start; i < run.ids.length && i < start + 4; i++) {
       var t = tasks.find(function (x) { return x.id === run.ids[i]; });
@@ -6163,20 +6310,26 @@ window.Sanctuary = (function () {
       var lbl = now ? 'NOW' : (i === start + 1 ? 'NEXT' : 'THEN');
       html += '<div class="sx-q ' + (now ? 'q-now' : '') + '"><span class="q-lbl">' + lbl + '</span><span class="q-name">' + esc(nm) + '</span></div>';
     }
-    html += '<div class="sx-q q-count">' + Math.min(run.idx + 1, run.ids.length) + ' / ' + run.ids.length + '</div>';
+    html += '<div class="sx-q q-count">' + Math.min(start + 1, run.ids.length) + ' / ' + run.ids.length + '</div>'; // phase-aware: during break/ready the NEXT climb is the position
     strip.innerHTML = html;
   }
   function loadRunTask(i, autostart) {
-    run.idx = i; run.phase = 'focus'; endMode = null;
+    run.idx = i; run.phase = 'focus'; run.renudged = false; endMode = null;
+    document.body.classList.remove('overtime');
     setActive(run.ids[i], false);
     if (autostart) startTimer();
     sync();
   }
+  // Enter the gap after the current task. Per-gap breaks: run.gaps[idx] is the
+  // break AFTER task idx ('none' advances straight into the next task).
   function startBreak() {
     // No break after the final task — go straight to the run-complete screen.
     if (run.idx >= run.ids.length - 1) { advanceRun(); return; }
+    var kind = (run.gaps && run.gaps[run.idx]) || 'none';
+    if (kind === 'none') { advanceRun(); return; }
     run.phase = 'break';
-    var isLong = run.breakMode === 'long';
+    document.body.classList.remove('overtime');
+    var isLong = kind === 'long';
     if (running) pauseTimer();
     setMode(isLong ? 'long' : 'short', modeBtn(isLong ? 2 : 1));
     startTimer();
@@ -6191,8 +6344,30 @@ window.Sanctuary = (function () {
     if (running) pauseTimer();
     stopMusic();
     document.body.classList.remove('break');
+    document.body.classList.remove('overtime');
     run.phase = 'done';
     sync();
+  }
+  // Routine instances are disposable: when a run ends with materialized steps
+  // still unfinished (early exit, skips), remove them from the list — the
+  // routine TEMPLATE persists, and Undo brings the instances back if wanted.
+  function cleanupMaterialized(r) {
+    if (!r || !r.materialized) return;
+    var removed = r.materialized
+      .map(function (id) { return tasks.find(function (x) { return x.id === id; }); })
+      .filter(function (t) { return t && !t.done; });
+    if (!removed.length) return;
+    var ids = removed.map(function (t) { return t.id; });
+    tasks = tasks.filter(function (t) { return ids.indexOf(t.id) === -1; });
+    if (ids.indexOf(activeId) !== -1) {
+      var first = tasks.find(function (t) { return !t.done; });
+      activeId = first ? first.id : null;
+    }
+    renderTasks(); updateStats(); renderActivePill(); saveAll();
+    showUndo('Run ended — ' + removed.length + ' unfinished step' + (removed.length === 1 ? '' : 's') + ' removed', function () {
+      removed.forEach(function (t) { tasks.push(t); });
+      renderTasks(); updateStats(); saveAll();
+    });
   }
   function syncRun() {
     var c = colors();
@@ -6218,18 +6393,44 @@ window.Sanctuary = (function () {
       $('sxSecondary').style.display = 'none';
       return;
     }
+    // Break's over \u2192 wait state. Nothing is being timed: the next climb starts
+    // when the user taps Begin, so absent minutes never get billed to a task.
+    if (run.phase === 'ready') {
+      ring(1, c.blue);
+      $('sxDot').style.background = c.blue;
+      $('sxCat').textContent = 'RUN \u00b7 ' + Math.min(run.idx + 2, run.ids.length) + ' OF ' + run.ids.length + ' \u00b7 READY';
+      $('sxTime').style.display = 'none'; $('sxSub').style.display = 'none';
+      $('sxStar').style.display = 'block'; $('sxStar').style.color = c.blue;
+      $('sxStarSub').style.display = 'block'; $('sxStarSub').textContent = 'RESTED';
+      $('sxTask').textContent = 'Break\u2019s over.';
+      $('sxEnd').style.display = 'flex';
+      $('sxEndTitle').textContent = 'Next: ' + (runNextName(1) || 'done');
+      $('sxEndSub').textContent = 'Begin when you\u2019re ready.';
+      $('sxMeta').style.display = 'none';
+      $('sxControls').style.display = 'none';
+      $('sxRunBar').style.display = 'none';
+      $('sxQueue').style.display = 'flex';
+      $('sxEndActions').style.display = 'flex';
+      $('sxPrimary').textContent = 'Begin \u2192';
+      $('sxPrimary').style.background = c.accent;
+      $('sxSecondary').style.display = 'none';
+      return;
+    }
     var isBreak = document.body.classList.contains('break');
     var neg = remaining < 0;
     var abs = Math.abs(remaining), mm = String(Math.floor(abs / 60)).padStart(2, '0'), ss = String(abs % 60).padStart(2, '0');
+    // Time-blindness insurance: one soft re-chime 5 minutes into overtime \u2014
+    // the zero-crossing chime is easy to miss mid-task.
+    if (!isBreak && neg && remaining <= -300 && !run.renudged) { run.renudged = true; playSound('finish'); }
     $('sxTime').style.display = ''; $('sxSub').style.display = '';
     $('sxStar').style.display = 'none'; $('sxStarSub').style.display = 'none';
-    $('sxTime').textContent = (neg ? '-' : '') + mm + ':' + ss;
-    $('sxSub').textContent = isBreak ? 'BREAK' : 'FOCUS';
-    var color = isBreak ? c.blue : c.accent;
+    $('sxTime').textContent = (neg ? '-' : '') + mm + ':' + ss; // minus = past the estimate, same as solo mode
+    $('sxSub').textContent = isBreak ? 'BREAK' : (neg ? 'OVERTIME' : 'FOCUS');
+    var color = isBreak ? c.blue : (neg ? c.amber : c.accent);
     var pct = totalSec > 1 ? remaining / totalSec : 0;
     ring(pct, color);
     $('sxDot').style.background = color;
-    $('sxCat').textContent = 'RUN \u00b7 ' + Math.min(run.idx + 1, run.ids.length) + ' OF ' + run.ids.length + (isBreak ? ' \u00b7 BREAK' : '');
+    $('sxCat').textContent = 'RUN \u00b7 ' + Math.min(run.idx + 1, run.ids.length) + ' OF ' + run.ids.length + (isBreak ? ' \u00b7 BREAK' : (neg ? ' \u00b7 OVERTIME' : ''));
     var t = curTask();
     $('sxTask').textContent = isBreak ? ('Rest \u2014 next: ' + (runNextName(1) || 'done')) : (t ? t.name : 'Run');
     $('sxMeta').style.display = 'none';
@@ -6273,9 +6474,19 @@ window.Sanctuary = (function () {
   function modeBtn(i) { const b = document.querySelectorAll('.mode-btn'); return b[i] || null; }
   return {
     open() { open = true; endMode = null; lastName = ''; $('sanctuary').classList.add('open'); $('sanctuary').setAttribute('aria-hidden', 'false'); muteBtn(); sync(); if (running) playMusic(); },
-    close() { if (run) { run = null; if (running) pauseTimer(); document.body.classList.remove('break'); } open = false; endMode = null; stopMusic(); const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
-    startRun(ids, breaks) {
-      run = { ids: ids.slice(), idx: 0, breakMode: breaks || 'short', phase: 'focus', completed: 0 };
+    close() { if (run) { const r = run; run = null; if (running) pauseTimer(); document.body.classList.remove('break'); document.body.classList.remove('overtime'); cleanupMaterialized(r); } open = false; endMode = null; stopMusic(); const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
+    // opts: { gaps: break-after-each-task array ('none'|'short'|'long'),
+    //         autoFlow: complete+advance on expiry (default false = hold in overtime),
+    //         materialized: task ids created for this run (routine instances) }.
+    // Legacy string opts = one global break mode for every gap.
+    startRun(ids, opts) {
+      if (typeof opts === 'string' || opts == null) {
+        var legacy = opts || 'short';
+        opts = { gaps: ids.map(function () { return legacy; }) };
+      }
+      var gaps = (opts.gaps && opts.gaps.length === ids.length) ? opts.gaps.slice() : ids.map(function () { return 'short'; });
+      run = { ids: ids.slice(), gaps: gaps, autoFlow: !!opts.autoFlow, idx: 0, phase: 'focus',
+              completed: 0, renudged: false, materialized: opts.materialized || null };
       open = true; endMode = null; lastName = '';
       $('sanctuary').classList.add('open'); $('sanctuary').setAttribute('aria-hidden', 'false');
       muteBtn();
@@ -6285,30 +6496,45 @@ window.Sanctuary = (function () {
     doneRun() {
       if (!run || run.phase === 'done') return;
       if (running) pauseTimer();
-      if (run.phase === 'break') { advanceRun(); return; }
+      if (run.phase === 'break' || run.phase === 'ready') { advanceRun(); return; }
       var id = run.ids[run.idx];
       try { if (typeof toggleDone === 'function') toggleDone(id); } catch (e) {}
       run.completed++;
-      if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun();
+      startBreak(); // per-gap: consults run.gaps[idx]; 'none' advances directly
     },
-    endRun() { run = null; if (running) pauseTimer(); stopMusic(); document.body.classList.remove('break'); open = false; const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); },
+    endRun() { const r = run; run = null; if (running) pauseTimer(); stopMusic(); document.body.classList.remove('break'); document.body.classList.remove('overtime'); open = false; const s = $('sanctuary'); s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); cleanupMaterialized(r); },
     sync: sync,
     onStart() { sessLen = totalSec; if (open) { endMode = null; playMusic(); sync(); } },
     onPause() { if (open) { stopMusic(); sync(); } },
     onFinish(m) {
       if (!open) return;
       if (run) {
-        if (running) pauseTimer();
         if (run.phase === 'focus') {
-          // Timer elapsed (incl. overtime) — treat as completed so the work is
-          // logged to history, same as the ✓ done action. Otherwise a run left
-          // to expire naturally records nothing yet claims tasks were climbed.
-          var fid = run.ids[run.idx];
-          try { if (typeof toggleDone === 'function') toggleDone(fid); } catch (e) {}
-          run.completed++;
-          if (run.breakMode && run.breakMode !== 'none') startBreak(); else advanceRun();
+          if (run.autoFlow) {
+            // Auto-flow (opt-in, for hygiene-style routines): expiry completes
+            // the step and moves on, Routinery-style.
+            if (running) pauseTimer();
+            var fid = run.ids[run.idx];
+            try { if (typeof toggleDone === 'function') toggleDone(fid); } catch (e) {}
+            run.completed++;
+            startBreak();
+          } else {
+            // Default: HOLD. tick() already chimed and keeps counting into the
+            // minus (focus floors at -totalSec) — estimates are always wrong,
+            // so the step ends when the user says so (✓ / skip), and the
+            // overtime is tracked as real focused work. Do NOT pause here.
+            sync();
+          }
         }
-        else if (run.phase === 'break') { advanceRun(); }
+        else if (run.phase === 'break') {
+          // Break hit zero (tick pauses it right after this callback). Don't
+          // auto-start the next climb — wait on a Ready screen so absent
+          // minutes are never billed to a task the user hasn't begun.
+          run.phase = 'ready';
+          stopMusic();
+          document.body.classList.remove('break');
+          sync();
+        }
         return;
       }
       stopMusic(); sessLen = totalSec; const tk = curTask(); lastName = tk ? tk.name : lastName; endMode = (m === 'focus') ? 'focus' : 'break'; if (running) pauseTimer(); showEnd();
@@ -6316,6 +6542,7 @@ window.Sanctuary = (function () {
     markDone() { const t = curTask(); if (!t) return; sessLen = totalSec; lastName = t.name; if (running) pauseTimer(); endMode = 'focus'; try { toggleDone(t.id); } catch (e) {} endMode = 'focus'; showEnd(); },
     endPrimary() {
       if (run && run.phase === 'done') { window.Sanctuary.endRun(); return; }
+      if (run && run.phase === 'ready') { advanceRun(); return; } // Begin → next climb starts NOW
       if (endMode === 'break') { endMode = null; setMode('focus', modeBtn(0)); sync(); }
       else { endMode = null; if (running) pauseTimer(); setMode('short', modeBtn(1)); startTimer(); sync(); }
     },
@@ -6566,6 +6793,35 @@ document.addEventListener('keydown', e => {
   .run-seg-btn { padding:6px 13px; background:transparent; border:none; border-left:1px solid var(--border2); color:var(--text2); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; }
   .run-seg-btn:first-child { border-left:none; }
   .run-seg-btn.sel { background:var(--accent); color:#fff; }
+  /* Per-gap break chip: the tappable line BETWEEN two queue rows. Shows the
+     session as it will actually run; tap cycles none → short → long. */
+  .run-gap { display:flex; align-items:center; justify-content:center; gap:6px;
+    padding:3px 4px; margin:0; font-size:11px; color:var(--text3); cursor:pointer;
+    border-bottom:1px solid var(--border); -webkit-user-select:none; user-select:none; }
+  .run-gap:hover { color:var(--text); background:var(--surface3); }
+  .run-gap.has-break { color:var(--blue, var(--text2)); }
+  .run-gap.dim { opacity:0.35; pointer-events:none; }
+  .run-autoflow-row { display:flex; align-items:center; gap:9px; padding:10px 2px 12px;
+    font-size:12px; color:var(--text2); cursor:pointer; }
+  .run-autoflow-row input { width:15px; height:15px; accent-color:var(--accent); flex:none; }
+  .run-autoflow-row em { font-style:normal; color:var(--text3); }
+  /* Saved routines strip at the top of the Run modal */
+  .routine-strip { display:flex; flex-direction:column; gap:6px; margin:2px 0 14px; }
+  .routine-strip:empty { display:none; }
+  .routine-card { display:flex; align-items:center; gap:10px; padding:9px 12px;
+    background:var(--surface3); border:1px solid var(--border2); border-radius:var(--radius-sm);
+    cursor:pointer; transition:border-color 0.12s; }
+  .routine-card:hover { border-color:var(--accent); }
+  .routine-play { flex:none; font-size:13px; color:var(--accent); }
+  .routine-name { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .routine-meta { flex:none; font-family:'DM Mono',monospace; font-size:11px; color:var(--text3); }
+  .routine-del { flex:none; background:none; border:none; color:var(--text3); font-size:13px;
+    cursor:pointer; padding:2px 4px; line-height:1; }
+  .routine-del:hover { color:var(--red); }
+  .btn-save-routine { margin-right:auto; background:none; border:none; color:var(--text3);
+    font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; padding:8px 4px; }
+  .btn-save-routine:hover { color:var(--accent); }
 </style>
 <div id="sanctuary" aria-hidden="true">
   <div class="sx-grain"></div>

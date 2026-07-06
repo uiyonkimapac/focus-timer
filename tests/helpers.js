@@ -10,6 +10,7 @@ async function open(page) {
   await page.goto('/index.html');
   await page.evaluate(() => {
     tasks.length = 0; history.length = 0; categories.length = 0;
+    if (typeof routines !== 'undefined') routines.length = 0;
     activeId = null;
     if (typeof uncatCollapsed !== 'undefined') uncatCollapsed = false;
     if (typeof doneCollapsed !== 'undefined') doneCollapsed = false;
