@@ -1851,6 +1851,26 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   </div>
 </div>
 
+<!-- ROUTINE BUILDER MODAL — create/edit a routine directly. A routine is a
+     durable template of its own; the task list is untouched until you START it. -->
+<div class="modal-overlay" id="routineModal">
+  <div class="modal" style="width:440px;">
+    <div class="modal-title" id="rbTitle">New routine</div>
+    <div class="modal-sub">Steps live in the routine, not on your task list. Tap the line between two steps to set that gap's break; Enter on the last step adds another.</div>
+    <input type="text" class="rb-name-input" id="rbName" maxlength="60" placeholder="Routine name — e.g. Morning startup" autocomplete="off">
+    <div class="run-list" id="rbStepList"></div>
+    <button type="button" class="rb-add" onclick="rbAddStep()">＋ Add step</button>
+    <label class="run-autoflow-row" title="Off: when time's up the timer keeps counting (overtime) until you hit ✓. On: completes and advances by itself — for hygiene-style routines.">
+      <input type="checkbox" id="rbAutoFlow">
+      <span>Auto-advance when time's up <em>(otherwise runs overtime until you finish)</em></span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRoutineEditor()">Cancel</button>
+      <button class="btn-confirm" onclick="saveRoutineEditor()">Save routine</button>
+    </div>
+  </div>
+</div>
+
 <!-- SAVE MODAL -->
 <div class="modal-overlay" id="saveModal">
   <div class="modal" style="width:420px;">
@@ -6035,6 +6055,8 @@ function setRunAutoFlow(on) {
   try { localStorage.setItem('focustimer_runAutoFlow', runAutoFlow ? '1' : '0'); } catch (e) {}
 }
 function runGapFor(id) { return runGaps[id] !== undefined ? runGaps[id] : runBreakMode; }
+// Plain-text chip labels (shared by the Run sheet and the routine builder).
+function gapLabel(g) { return g === 'none' ? '— no break —' : (g === 'long' ? '15 min break' : '5 min break'); }
 function cycleRunGap(id) {
   var next = { none: 'short', short: 'long', long: 'none' };
   runGaps[id] = next[runGapFor(id)] || 'none';
@@ -6139,9 +6161,8 @@ function renderRunSetup() {
     // when this row is unchecked — its gap won't exist in the session.
     if (i < runSetupOrder.length - 1) {
       var g = runGapFor(id);
-      var lbl = g === 'none' ? '— no break —' : (g === 'long' ? '🌙 15 min break' : '☕ 5 min break');
       row += '<div class="run-gap' + (g !== 'none' ? ' has-break' : '') + (runExcluded[id] ? ' dim' : '')
-        + '" onclick="cycleRunGap(' + t.id + ')" title="Tap to change this gap: none → short → long">' + lbl + '</div>';
+        + '" onclick="cycleRunGap(' + t.id + ')" title="Tap to change this gap: none → 5 min → 15 min">' + gapLabel(g) + '</div>';
     }
     return row;
   }).join('');
@@ -6172,9 +6193,11 @@ function renderRunRoutines() {
       + '<span class="routine-play">▶</span>'
       + '<span class="routine-name">' + esc(r.name) + '</span>'
       + '<span class="routine-meta">' + r.steps.length + ' step' + (r.steps.length === 1 ? '' : 's') + ' · ' + fmtMins(total) + '</span>'
+      + '<button type="button" class="routine-edit" onclick="event.stopPropagation();openRoutineEditor(\'' + r.id + '\')" title="Edit routine">✎</button>'
       + '<button type="button" class="routine-del" onclick="event.stopPropagation();deleteRoutine(\'' + r.id + '\')" title="Delete routine">✕</button>'
       + '</div>';
-  }).join('');
+  }).join('')
+    + '<button type="button" class="routine-add-card" onclick="openRoutineEditor()">＋ New routine</button>';
 }
 function saveRunAsRoutine() {
   var ids = runSetupOrder.filter(function (id) { return !runExcluded[id]; });
@@ -6222,6 +6245,136 @@ function startRoutine(rid) {
   renderTasks(); updateStats(); saveAll();
   closeRunSetup();
   Sanctuary.startRun(ids, { gaps: gaps, autoFlow: !!r.autoFlow, materialized: ids });
+}
+
+// ── ROUTINE BUILDER (create/edit a routine directly — no tasks involved) ──
+// The editor works on a draft (rbDraft); `routines` is only touched on Save.
+let rbEditingId = null, rbDraft = [];
+function openRoutineEditor(rid) {
+  var r = rid ? routines.find(function (x) { return x.id === rid; }) : null;
+  rbEditingId = r ? r.id : null;
+  rbDraft = r ? r.steps.map(function (s) { return { name: s.name, mins: s.mins, gapAfter: s.gapAfter }; })
+              : [{ name: '', mins: 15, gapAfter: 'none' }];
+  document.getElementById('rbTitle').textContent = r ? 'Edit routine' : 'New routine';
+  document.getElementById('rbName').value = r ? r.name : '';
+  document.getElementById('rbAutoFlow').checked = r ? !!r.autoFlow : false;
+  rbRenderSteps();
+  document.getElementById('routineModal').classList.add('open');
+  if (!r) document.getElementById('rbName').focus();
+}
+function closeRoutineEditor() { document.getElementById('routineModal').classList.remove('open'); }
+function rbRenderSteps(focusIdx) {
+  var box = document.getElementById('rbStepList'); if (!box) return;
+  box.innerHTML = rbDraft.map(function (s, i) {
+    var row = '<div class="run-row rb-row" data-i="' + i + '">'
+      + '<span class="run-grip rb-grip" title="Drag to reorder">⋮⋮</span>'
+      + '<input type="text" class="rb-step-name" maxlength="100" placeholder="Step ' + (i + 1) + '" value="' + esc(s.name) + '" oninput="rbDraft[' + i + '].name=this.value" onkeydown="rbNameKey(event,' + i + ')">'
+      + '<input type="text" class="rb-step-mins" inputmode="numeric" value="' + s.mins + '" onchange="rbSetMins(' + i + ',this)" aria-label="Minutes">'
+      + '<span class="rb-min-lbl">min</span>'
+      + '<button type="button" class="routine-del" onclick="rbRemoveStep(' + i + ')" title="Remove step">✕</button>'
+      + '</div>';
+    if (i < rbDraft.length - 1) {
+      row += '<div class="run-gap' + (s.gapAfter !== 'none' ? ' has-break' : '')
+        + '" onclick="rbCycleGap(' + i + ')" title="Tap to change this gap: none → 5 min → 15 min">' + gapLabel(s.gapAfter) + '</div>';
+    }
+    return row;
+  }).join('');
+  rbReorderBind();
+  if (focusIdx !== undefined) {
+    var el = box.querySelector('.rb-row[data-i="' + focusIdx + '"] .rb-step-name');
+    if (el) el.focus();
+  }
+}
+function rbAddStep() { rbDraft.push({ name: '', mins: 15, gapAfter: 'none' }); rbRenderSteps(rbDraft.length - 1); }
+function rbRemoveStep(i) { rbDraft.splice(i, 1); if (!rbDraft.length) rbDraft.push({ name: '', mins: 15, gapAfter: 'none' }); rbRenderSteps(); }
+function rbCycleGap(i) {
+  var next = { none: 'short', short: 'long', long: 'none' };
+  rbDraft[i].gapAfter = next[rbDraft[i].gapAfter] || 'none';
+  rbRenderSteps();
+}
+function rbSetMins(i, input) { rbDraft[i].mins = parseTime(input.value); input.value = rbDraft[i].mins; }
+function rbNameKey(e, i) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (i === rbDraft.length - 1) rbAddStep(); // Enter on the last row = quick-add the next
+}
+function saveRoutineEditor() {
+  var name = (document.getElementById('rbName').value || '').trim().slice(0, 60);
+  var steps = rbDraft
+    .filter(function (s) { return s.name.trim(); })
+    .map(function (s) { return { name: s.name.trim().slice(0, 100), mins: s.mins, gapAfter: s.gapAfter }; });
+  if (!name) { document.getElementById('rbName').focus(); return; }
+  if (!steps.length) { rbRenderSteps(0); return; }
+  var autoFlow = !!document.getElementById('rbAutoFlow').checked;
+  var existing = rbEditingId ? routines.find(function (x) { return x.id === rbEditingId; }) : null;
+  if (existing) {
+    existing.name = name; existing.steps = steps; existing.autoFlow = autoFlow;
+  } else {
+    routines.push({ id: 'r_' + Date.now() + '_' + Math.floor(Math.random() * 1e6),
+                    name: name, steps: steps, autoFlow: autoFlow, order: routines.length });
+  }
+  saveAll();
+  renderRunRoutines();
+  closeRoutineEditor();
+}
+// Drag-to-reorder builder steps — same delegated-pointer pattern as the run
+// queue, but the drop mutates rbDraft (indices, not task ids).
+let rbDrag = null;
+function rbReorderBind() {
+  var box = document.getElementById('rbStepList');
+  if (!box || box._reorderBound) return;
+  box._reorderBound = true;
+  box.addEventListener('pointerdown', onRbPointerDown);
+  document.addEventListener('pointermove', onRbPointerMove);
+  document.addEventListener('pointerup', onRbPointerUp);
+  document.addEventListener('pointercancel', rbReorderCleanup);
+}
+function onRbPointerDown(e) {
+  var grip = e.target.closest && e.target.closest('.rb-grip');
+  if (!grip) return;
+  var row = grip.closest('.rb-row'); if (!row) return;
+  // Commit a mid-edit minutes field: preventDefault below suppresses the blur
+  // that would otherwise fire its onchange before we re-render.
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  e.preventDefault();
+  rbDrag = { i: Number(row.getAttribute('data-i')), row: row, overEl: null, after: false };
+  row.classList.add('run-dragging');
+}
+function onRbPointerMove(e) {
+  var d = rbDrag; if (!d) return;
+  e.preventDefault();
+  var box = document.getElementById('rbStepList'); if (!box) return;
+  runClearIndicators(box);
+  var rows = [].slice.call(box.querySelectorAll('.rb-row'));
+  var over = null, after = false;
+  for (var k = 0; k < rows.length; k++) {
+    var r = rows[k].getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) { over = rows[k]; after = false; break; }
+    over = rows[k]; after = true;
+  }
+  d.overEl = over; d.after = after;
+  if (over) over.classList.add(after ? 'run-drop-after' : 'run-drop-before');
+}
+function onRbPointerUp() {
+  var d = rbDrag; if (!d) return;
+  rbDrag = null;
+  if (d.row) d.row.classList.remove('run-dragging');
+  if (d.overEl) {
+    var overI = Number(d.overEl.getAttribute('data-i'));
+    if (overI !== d.i) {
+      var moved = rbDraft.splice(d.i, 1)[0];
+      var to = overI;
+      if (d.i < overI) to -= 1;
+      if (d.after) to += 1;
+      rbDraft.splice(to, 0, moved);
+    }
+  }
+  rbRenderSteps();
+}
+function rbReorderCleanup() {
+  var d = rbDrag; rbDrag = null;
+  if (d && d.row) d.row.classList.remove('run-dragging');
+  var box = document.getElementById('rbStepList'); if (box) runClearIndicators(box);
 }
 
 // ── FOCUS SANCTUARY (full-screen focus mode) ──
@@ -6822,6 +6975,31 @@ document.addEventListener('keydown', e => {
   .btn-save-routine { margin-right:auto; background:none; border:none; color:var(--text3);
     font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; padding:8px 4px; }
   .btn-save-routine:hover { color:var(--accent); }
+  .routine-edit { flex:none; background:none; border:none; color:var(--text3); font-size:12px;
+    cursor:pointer; padding:2px 4px; line-height:1; }
+  .routine-edit:hover { color:var(--accent); }
+  .routine-add-card { display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 12px;
+    background:none; border:1px dashed var(--border2); border-radius:var(--radius-sm);
+    color:var(--text3); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; }
+  .routine-add-card:hover { color:var(--accent); border-color:var(--accent); }
+  /* Routine builder: template rows reuse the run-row/run-gap look, with inputs. */
+  .rb-name-input { width:100%; box-sizing:border-box; margin:2px 0 6px; padding:9px 11px;
+    background:var(--surface3); border:1px solid var(--border2); border-radius:var(--radius-sm);
+    color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; }
+  .rb-name-input:focus { outline:none; border-color:var(--accent); }
+  .rb-row input { -webkit-user-select:text; user-select:text; }
+  .rb-step-name { flex:1; min-width:0; padding:6px 8px; background:var(--surface3);
+    border:1px solid var(--border2); border-radius:6px; color:var(--text);
+    font-family:'DM Sans',sans-serif; font-size:13px; }
+  .rb-step-name:focus, .rb-step-mins:focus { outline:none; border-color:var(--accent); }
+  .rb-step-mins { width:44px; flex:none; padding:6px 4px; text-align:center; background:var(--surface3);
+    border:1px solid var(--border2); border-radius:6px; color:var(--text);
+    font-family:'DM Mono',monospace; font-size:12px; }
+  .rb-min-lbl { flex:none; font-size:11px; color:var(--text3); }
+  .rb-add { display:block; width:100%; padding:8px; margin:4px 0 2px; background:none;
+    border:1px dashed var(--border2); border-radius:var(--radius-sm); color:var(--text3);
+    font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; }
+  .rb-add:hover { color:var(--accent); border-color:var(--accent); }
 </style>
 <div id="sanctuary" aria-hidden="true">
   <div class="sx-grain"></div>

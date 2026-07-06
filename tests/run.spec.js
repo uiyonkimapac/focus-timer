@@ -186,6 +186,59 @@ test('save-as-routine snapshots the queue; sanitizeRoutines rejects forged paylo
   expect(r.hostile[0].autoFlow).toBe(false);           // strict boolean
 });
 
+test('routine builder: create from scratch touches no tasks; edit updates in place', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    openRunSetup();                            // builder lives on the Run sheet
+    const addCard = document.getElementById('runRoutines').innerHTML;
+    openRoutineEditor();                       // ＋ New routine
+    document.getElementById('rbName').value = 'Wind-down';
+    rbDraft[0].name = 'Stretch'; rbSetMins(0, { value: '5' });
+    rbAddStep(); rbDraft[1].name = 'Journal'; rbSetMins(1, { value: '10' });
+    rbCycleGap(0);                             // gap after Stretch: none → short
+    saveRoutineEditor();
+    const created = {
+      count: routines.length,
+      saved: JSON.parse(JSON.stringify(routines[0])),
+      tasksUntouched: tasks.length,
+      modalOpen: document.getElementById('routineModal').classList.contains('open'),
+    };
+    openRoutineEditor(routines[0].id);         // ✎ edit prefills the same editor
+    const prefill = { title: document.getElementById('rbTitle').textContent,
+                      name: document.getElementById('rbName').value, steps: rbDraft.length };
+    document.getElementById('rbName').value = 'Evening wind-down';
+    rbRemoveStep(0);
+    saveRoutineEditor();
+    return { addCard, created, prefill, after: JSON.parse(JSON.stringify(routines)) };
+  });
+  expect(r.addCard).toContain('New routine');  // reachable even with zero routines/tasks
+  expect(r.created.count).toBe(1);
+  expect(r.created.saved.steps).toEqual([
+    { name: 'Stretch', mins: 5, gapAfter: 'short' },
+    { name: 'Journal', mins: 10, gapAfter: 'none' },
+  ]);
+  expect(r.created.tasksUntouched).toBe(0);    // routines are their own thing
+  expect(r.created.modalOpen).toBe(false);
+  expect(r.prefill).toEqual({ title: 'Edit routine', name: 'Wind-down', steps: 2 });
+  expect(r.after.length).toBe(1);              // edited in place, not duplicated
+  expect(r.after[0].id).toBe(r.created.saved.id);
+  expect(r.after[0].name).toBe('Evening wind-down');
+  expect(r.after[0].steps).toEqual([{ name: 'Journal', mins: 10, gapAfter: 'none' }]);
+});
+
+test('break chips are plain text — no emoji', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A', mins: 5 }, { name: 'B', mins: 5 }]);
+  const r = await page.evaluate(() => {
+    openRunSetup();                            // default all-gaps mode is short
+    const short = document.getElementById('runTaskList').innerHTML;
+    cycleRunGap(runSetupOrder[0]);             // short → long
+    const long = document.getElementById('runTaskList').innerHTML;
+    return { short, long };
+  });
+  expect(r.short).toContain('5 min break');
+  expect(r.long).toContain('15 min break');
+  expect(r.short + r.long).not.toMatch(/☕|🌙/);
+});
+
 test('the completion count reflects tasks actually done, not skipped ones', async ({ page }) => {
   await seedTasks(page, [{ name: 'A' }, { name: 'B' }, { name: 'C' }]);
   const r = await page.evaluate(() => {

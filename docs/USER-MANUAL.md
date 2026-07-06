@@ -86,7 +86,7 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 Turn your list into a guided session. **⟳ Run** opens a setup sheet where you:
 - **uncheck** any tasks you want to skip this run;
 - **drag the ⋮⋮ grip** to reorder the queue (each row shows its time and, if it has one, its **category name**);
-- set breaks **per gap**: tap the thin line *between* two rows to cycle **— none / ☕ 5 min / 🌙 15 min** (the **Breaks (all gaps)** segment sets every gap at once, chips override individual ones).
+- set breaks **per gap**: tap the thin line *between* two rows to cycle **none / 5 min / 15 min** (the **Breaks (all gaps)** segment sets every gap at once, chips override individual ones).
 
 **Start Run →** works each task for its set time, in order, full-screen.
 
@@ -95,9 +95,10 @@ Turn your list into a guided session. **⟳ Run** opens a setup sheet where you:
 **When a break ends,** the run waits on a **Ready** screen ("Next: …") — the next task's clock starts only when you tap **Begin →**, so minutes never get billed to a climb you haven't started.
 
 ### Routines (saved runs) ★
-Like Routinery: build the queue once, keep it forever.
+Like Routinery: build the routine once, keep it forever. Two ways to make one:
+- **＋ New routine** (top of the Run sheet) opens the **builder** — name the routine, type steps directly (name + minutes), tap the line between steps to set that gap's break, press **Enter** on the last step to add another, drag **⋮⋮** to reorder. Your task list is never touched: a routine is its own thing until you start it.
 - **☆ Save as routine** (bottom-left of the Run sheet) snapshots the current queue — steps, minutes, per-gap breaks, the auto-advance setting — under a name you choose.
-- Saved routines appear as **cards at the top of the Run sheet**: tap one to start it, **✕** to delete. They sync across devices.
+- Saved routines appear as **cards at the top of the Run sheet**: tap one to start it, **✎** to edit it in the builder, **✕** to delete. They sync across devices.
 - Starting a routine **creates its steps as real tasks** (grouped under a category named after the routine), so completions land in history and today's stats like any other task.
 - **Exit a run early** and the unfinished steps are tidied off your list automatically (an **Undo** toast brings them back) — the routine template itself is never touched. Finished steps stay in history.
 
