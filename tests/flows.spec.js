@@ -482,6 +482,93 @@ test('map popover rename is never lost on teardown and never writes stale refs (
   expect(r.name).toBe('Post-sync name');
 });
 
+test('Manage categories can delete stale/empty categories the list view cannot reach', async ({ page }) => {
+  await page.evaluate(() => {
+    categories.push(
+      { id: 'c_used',  name: 'Used',  color: '#5aa9e6', order: 0, collapsed: false },
+      { id: 'c_stale', name: 'Stale', color: '#e65a5a', order: 1, collapsed: false },
+    );
+    renderTasks();
+  });
+  await seedTasks(page, [{ name: 'Belongs somewhere', categoryId: 'c_used' }]);
+  // The picker gained the manage verb; choosing it opens the modal and resets
+  // the picker (it must never stay stuck on a non-category value).
+  const r1 = await page.evaluate(() => {
+    const picker = document.getElementById('taskCategory');
+    const hasOpt = [...picker.options].some(o => o.value === '__manage');
+    picker.value = '__manage';
+    onCategoryPickerChange();
+    return {
+      hasOpt,
+      open: document.getElementById('manageCatsModal').classList.contains('open'),
+      pickerValue: picker.value,
+      rows: [...document.querySelectorAll('.managecat-row')].map(r => ({
+        name: r.querySelector('.managecat-name').textContent,
+        count: r.querySelector('.managecat-count').textContent,
+      })),
+    };
+  });
+  expect(r1.hasOpt).toBe(true);
+  expect(r1.open).toBe(true);
+  expect(r1.pickerValue).toBe('');
+  expect(r1.rows).toEqual([
+    { name: 'Used', count: '1 task' },
+    { name: 'Stale', count: 'empty' },   // reachable here even with no visible tasks
+  ]);
+  // Delete the empty one: confirm is asked, the row disappears, the modal stays
+  // open (cleanup is usually several deletes), and the picker updates.
+  page.on('dialog', d => d.accept());
+  await page.locator('.managecat-row', { hasText: 'Stale' }).locator('.managecat-btn.del').click();
+  const r2 = await page.evaluate(() => ({
+    catIds: categories.map(c => c.id),
+    stillOpen: document.getElementById('manageCatsModal').classList.contains('open'),
+    rowCount: document.querySelectorAll('.managecat-row').length,
+    pickerHasStale: [...document.getElementById('taskCategory').options].some(o => o.textContent === 'Stale'),
+  }));
+  expect(r2.catIds).toEqual(['c_used']);
+  expect(r2.stillOpen).toBe(true);
+  expect(r2.rowCount).toBe(1);
+  expect(r2.pickerHasStale).toBe(false);
+  // Deleting a category WITH tasks re-parents them to Uncategorized — never lost.
+  await page.locator('.managecat-row', { hasText: 'Used' }).locator('.managecat-btn.del').click();
+  const r3 = await page.evaluate(() => ({
+    cats: categories.length,
+    taskCat: tasks[0].categoryId,
+    taskAlive: !tasks[0].done && tasks[0].name === 'Belongs somewhere',
+  }));
+  expect(r3.cats).toBe(0);
+  expect(r3.taskCat).toBeNull();
+  expect(r3.taskAlive).toBe(true);
+});
+
+test('sync: foreground return and network-online trigger catch-up pulls (throttled)', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    let pulls = 0;
+    pullFromCloud = async () => { pulls++; return true; };   // stub the network
+    subscribeRealtime = () => {};                            // don't open a real socket
+    syncCode = 'FT-TEST-42';
+    lastPullMs = 0;
+    // Returning to the foreground pulls (realtime may have died while hidden)…
+    document.dispatchEvent(new Event('visibilitychange'));
+    const afterResume = pulls;
+    // …but a second resume within the 5s throttle window does NOT re-pull…
+    document.dispatchEvent(new Event('visibilitychange'));
+    const afterQuickResume = pulls;
+    // …while coming back online is forced — the socket is certainly dead.
+    window.dispatchEvent(new Event('online'));
+    const afterOnline = pulls;
+    // With sync off, none of these should touch the network.
+    syncCode = null; lastPullMs = 0;
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('online'));
+    return { afterResume, afterQuickResume, afterOnline, afterOff: pulls - afterOnline };
+  });
+  expect(r.afterResume).toBe(1);
+  expect(r.afterQuickResume).toBe(1); // throttled
+  expect(r.afterOnline).toBe(2);      // forced
+  expect(r.afterOff).toBe(0);         // sync disconnected → silent
+});
+
 test('a hostile name entered via the popover stays inert in every sink (XSS)', async ({ page }) => {
   const payload = '<img src=x onerror="window.__pwned=1">"><svg onload=window.__pwned=1>';
   await seedTasks(page, [{ name: 'Innocent', mins: 25 }]);

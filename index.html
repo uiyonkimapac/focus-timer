@@ -1029,6 +1029,36 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
 }
 
+/* Manage-categories modal: one row per category — swatch, name, live count,
+   edit/delete. Actions stay visible (no hover-reveal): this modal exists to
+   delete things, so the affordance must not hide. */
+.managecat-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 320px; overflow-y: auto; margin-bottom: 18px;
+}
+.managecat-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+}
+.managecat-row:hover { background: var(--surface3); }
+.managecat-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.managecat-name {
+  flex: 1; min-width: 0; font-size: 14px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.managecat-count { flex: none; font-size: 11px; color: var(--text3); }
+.managecat-btn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; min-height: 30px; padding: 2px 4px;
+  background: none; border: none; color: var(--text3);
+  font-size: 13px; line-height: 1; cursor: pointer; transition: color 0.15s;
+}
+.managecat-btn svg { width: 15px; height: 15px; }
+.managecat-btn.edit:hover { color: var(--accent); }
+.managecat-btn.del:hover { color: var(--red); }
+.managecat-empty { padding: 14px 4px; font-size: 13px; color: var(--text3); text-align: center; }
+@media (pointer: coarse) { .managecat-btn { min-width: 44px; min-height: 44px; } }
+
 /* top progress bar */
 .top-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: transparent; z-index: 200; }
 /* Quiet hairline (no glow) — calm timer progress, not a bright strip. */
@@ -1745,6 +1775,20 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   </div>
 </div>
 
+<!-- MANAGE CATEGORIES MODAL — the picker can add categories but never remove
+     them, and the list's color-dot editor only exists while a category has
+     visible tasks. This is the cleanup surface for the stale/empty ones. -->
+<div class="modal-overlay" id="manageCatsModal">
+  <div class="modal" style="width:440px;">
+    <div class="modal-title">🗂 Manage categories</div>
+    <div class="modal-sub">Rename, recolor or delete any category — including empty ones.<br>Deleting moves its tasks to Uncategorized; nothing is lost.</div>
+    <div class="managecat-list" id="manageCatsList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeManageCats()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="importModal">
   <div class="modal">
@@ -2235,8 +2279,40 @@ async function pullFromCloud() {
     if (error) { console.warn('sync pull failed:', error.message); return false; }
     if (!data || !data.data) return false;
     applyRemote(data.data);
+    setSyncStatus('Synced ✓ ' + new Date().toLocaleTimeString());
     return true;
   } catch (e) { console.warn('sync pull exception:', e); return false; }
+}
+
+// ── SYNC RESILIENCE ──
+// The realtime socket is best-effort only: iOS suspends it on app-switch,
+// laptops on sleep, and postgres_changes missed while down are NEVER replayed.
+// Worse, a device that stays stale and then edits pushes its whole old state
+// over everyone's newer data (last-write-wins). So correctness comes from
+// catch-up pulls — on resume, on reconnect, and on a slow periodic beat —
+// with the socket as a latency accelerator on top. applyRemote's dataTimestamp
+// gate makes redundant pulls harmless echoes.
+let lastPullMs = 0;
+let resubTimer = null, resubDelay = 5000;
+
+function catchUpPull(force) {
+  if (!syncCode) return; // pullFromCloud handles the no-SDK case itself
+  const now = Date.now();
+  if (!force && now - lastPullMs < 5000) return; // resume + online often fire together
+  lastPullMs = now;
+  pullFromCloud();
+}
+
+// Rejoin the realtime channel with backoff after an error/timeout/close.
+function scheduleResubscribe() {
+  if (!syncCode || !sb) return;
+  clearTimeout(resubTimer);
+  resubTimer = setTimeout(() => {
+    if (!syncCode) return; // disconnected while waiting
+    resubDelay = Math.min(resubDelay * 2, 60000);
+    subscribeRealtime();
+    catchUpPull(true); // pick up whatever the dead channel missed
+  }, resubDelay);
 }
 
 function applyRemote(d) {
@@ -2297,7 +2373,7 @@ function applyRemote(d) {
 function subscribeRealtime() {
   if (!sb || !syncCode) return;
   if (syncChannel) { sb.removeChannel(syncChannel); syncChannel = null; }
-  syncChannel = sb
+  const ch = sb
     .channel('focus_sync_' + syncCode)
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'focus_sync', filter: 'sync_id=eq.' + syncCode },
@@ -2305,8 +2381,16 @@ function subscribeRealtime() {
         const row = payload.new || payload.record;
         if (row && row.data) applyRemote(row.data);
       }
-    )
-    .subscribe();
+    );
+  syncChannel = ch;
+  ch.subscribe((status) => {
+    if (ch !== syncChannel) return; // a stale channel we already replaced/removed
+    if (status === 'SUBSCRIBED') {
+      resubDelay = 5000; clearTimeout(resubTimer); // healthy — reset the backoff
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      scheduleResubscribe();
+    }
+  });
 }
 
 function setSyncStatus(msg) {
@@ -2349,6 +2433,7 @@ async function connectSync() {
 
 function disconnectSync() {
   if (syncChannel && sb) { sb.removeChannel(syncChannel); syncChannel = null; }
+  clearTimeout(resubTimer);
   syncCode = null;
   try { localStorage.removeItem(STORAGE_SYNCCODE); } catch(e) {}
   document.getElementById('btnSyncDisconnect').style.display = 'none';
@@ -2826,6 +2911,9 @@ function onCategoryPickerChange() {
   if (!picker) return;
   if (picker.value === '__new') {
     promptNewCategory();
+  } else if (picker.value === '__manage') {
+    renderCategoryPicker(); // reset — never leave the picker stuck on a verb
+    openManageCats();
   }
 }
 
@@ -2836,7 +2924,8 @@ function renderCategoryPicker() {
   const sorted = categories.slice().sort((a,b)=>a.order-b.order);
   const opts = ['<option value="">No category</option>']
     .concat(sorted.map(c => `<option value="${c.id}">${esc(c.name)}</option>`))
-    .concat(['<option value="__new">+ New category…</option>']);
+    .concat(['<option value="__new">+ New category…</option>',
+             '<option value="__manage">🗂 Manage categories…</option>']);
   picker.innerHTML = opts.join('');
   // Restore prior selection if still valid
   if (prev && (prev === '' || categories.find(c => c.id === prev))) {
@@ -3010,6 +3099,48 @@ function promptNewCategory() {
   // Reset the dropdown immediately so it doesn't get stuck on "__new" if the user cancels
   renderCategoryPicker();
   openCategoryModal();
+}
+
+// ── MANAGE CATEGORIES ──
+// The picker can add categories but never remove them, and the in-list editor
+// (color dot → Edit category) only exists while a category has visible tasks —
+// so empty/stale categories used to be undeletable. This modal lists them ALL
+// with live counts; delete stays inside it so several stale categories can be
+// cleaned up in one visit.
+function openManageCats() {
+  renderManageCats();
+  document.getElementById('manageCatsModal').classList.add('open');
+}
+function closeManageCats() {
+  document.getElementById('manageCatsModal').classList.remove('open');
+}
+function renderManageCats() {
+  const list = document.getElementById('manageCatsList');
+  if (!list) return;
+  const sorted = categories.slice().sort((a, b) => a.order - b.order);
+  if (!sorted.length) {
+    list.innerHTML = '<div class="managecat-empty">No categories yet.</div>';
+    return;
+  }
+  list.innerHTML = sorted.map(c => {
+    const n = tasks.filter(t => !t.done && t.categoryId === c.id).length;
+    const count = n ? `${n} task${n === 1 ? '' : 's'}` : 'empty';
+    return `<div class="managecat-row">`
+      + `<span class="managecat-dot" style="background:${safeColor(c.color)}"></span>`
+      + `<span class="managecat-name" title="${esc(c.name)}">${esc(c.name)}</span>`
+      + `<span class="managecat-count">${count}</span>`
+      + `<button type="button" class="managecat-btn edit" onclick="manageCatsEdit('${c.id}')" title="Rename / recolor">${EDIT_SVG}</button>`
+      + `<button type="button" class="managecat-btn del" onclick="manageCatsDelete('${c.id}')" title="Delete category">✕</button>`
+      + `</div>`;
+  }).join('');
+}
+function manageCatsEdit(id) {
+  closeManageCats(); // hand off to the existing edit modal rather than stacking two
+  openCategoryModal(id);
+}
+function manageCatsDelete(id) {
+  deleteCategory(id); // confirms first + re-parents tasks to Uncategorized
+  renderManageCats(); // stay open — cleanup is usually more than one delete
 }
 
 // ── CATEGORY MODAL (create + edit, with 10-color picker) ──
@@ -6286,8 +6417,26 @@ document.addEventListener('visibilitychange', () => {
     const after = tasks.filter(isHiddenToday).length;
     if (after !== before || cleared || revived) { renderTasks(); }
     renderMeta();
+    // Catch up on sync missed while backgrounded — the realtime socket is
+    // usually dead by now (iOS suspends it) and dropped events never replay.
+    // Pull FIRST so a stale device can't clobber the cloud with old state on
+    // its next edit; then make sure the channel is actually alive again.
+    catchUpPull(false);
+    if (syncCode && sb && (!syncChannel || syncChannel.state !== 'joined')) subscribeRealtime();
   }
 });
+
+// Coming back online: the socket is certainly gone — resubscribe and catch up.
+window.addEventListener('online', () => {
+  if (!syncCode) return;
+  catchUpPull(true);
+  subscribeRealtime();
+});
+
+// Slow periodic catch-up while visible. This also makes sync work end-to-end
+// even if realtime delivery is unavailable entirely (blocked websocket,
+// realtime not enabled server-side): worst case devices converge every beat.
+setInterval(() => { if (!document.hidden) catchUpPull(false); }, 120000);
 
 // Restore sync if a code was saved on this device
 (async () => {

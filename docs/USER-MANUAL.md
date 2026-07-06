@@ -66,6 +66,7 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 - Create them from the category dropdown (10-color picker). Each group header shows a count + total time remaining.
 - **Collapse** a group by clicking its header; **reorder lanes** by dragging the header (⋮⋮ grip).
 - **Rename, recolor, or delete** a category from its **color dot** → the **Edit category** popup. Delete is a deliberate button there (it asks first); a deleted category's tasks move to **Uncategorized** — nothing is lost.
+- **🗂 Manage categories…** (bottom of the category dropdown) lists **every** category — including empty ones that no longer appear in the list — with live task counts. Rename/recolor (✎) or delete (✕) each; the window stays open so you can clean out several stale categories in one visit.
 - Drag a task **onto another group's header** (or onto a task inside it) to move it there.
 - "Uncategorized" stays anchored at the bottom.
 
