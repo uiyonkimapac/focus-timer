@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- Defense-in-depth CSP (GitHub Pages can't send headers, so meta it is).
+     'unsafe-inline' script is unavoidable — the app IS one inline script with
+     inline handlers — so this can't stop injected inline code by itself; its
+     value is confinement: no external script can load from anywhere but this
+     origin, and fetch/XHR/WebSocket can reach ONLY our Supabase project, so
+     even a successful XSS has no easy exfiltration channel. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self' https://ghmdvkmempbnjcamqzuc.supabase.co wss://ghmdvkmempbnjcamqzuc.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>Now This</title>
 <!-- PWA: installable, standalone, offline (sw.js) -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -2098,7 +2105,11 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   <button class="undo-btn" onclick="openSaveModal();document.getElementById('storageToast').classList.remove('open')">Save Report</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- supabase-js is VENDORED (not CDN): a compromised CDN would mean arbitrary
+     script in every session. Pinned @2.110.0, sha384-DjOvX/sJLsmbMrw4wTvf6l3k
+     iGBjdxyOO6X2MTFwOOXGkjN/mE08BoDzrpaaIjil — verify against the same version
+     on npm when updating vendor/supabase.min.js. -->
+<script src="vendor/supabase.min.js"></script>
 <script>
 // ── CONSTANTS ──
 const CIRC = 534; // 2*PI*85

@@ -5,19 +5,20 @@
 //    The whole app is one unhashed file, so cache-first would pin users to
 //    a stale build forever; network-first picks up deploys on the next
 //    online refresh with no version bump needed.
-//  - Same-origin static (sounds, icons, manifest) → cache-first (precached).
-//  - Font/CDN origins (Google Fonts, jsdelivr/supabase-js) → stale-while-
-//    revalidate in a runtime cache. Offline before first cache → graceful:
-//    fonts fall back via display=swap, sync code already tolerates a
-//    missing supabase-js (`sb` null guard).
+//  - Same-origin static (sounds, icons, manifest, vendored supabase-js) →
+//    cache-first (precached).
+//  - Font origins (Google Fonts) → stale-while-revalidate in a runtime cache.
+//    Offline before first cache → graceful: fonts fall back via display=swap,
+//    sync code already tolerates a missing supabase-js (`sb` null guard).
 //  - Everything else (notably *.supabase.co API/realtime) is NEVER
 //    intercepted; non-GET requests pass straight through.
 
-const CACHE = 'focus-timer-v2';
-const RUNTIME = 'focus-timer-runtime-v2';
+const CACHE = 'focus-timer-v3';
+const RUNTIME = 'focus-timer-runtime-v3';
 const PRECACHE = [
   './',
   './index.html',
+  './vendor/supabase.min.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -28,7 +29,7 @@ const PRECACHE = [
   './sounds/punch.mp3',
   './sounds/finish%20ring.mp3',
 ];
-const SWR_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'];
+const SWR_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

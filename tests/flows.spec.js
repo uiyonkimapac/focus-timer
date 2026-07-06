@@ -541,6 +541,24 @@ test('Manage categories can delete stale/empty categories the list view cannot r
   expect(r3.taskAlive).toBe(true);
 });
 
+test('hardening: supabase-js is vendored (no CDN) and the CSP meta confines the page', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const csp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    return {
+      vendored: !!document.querySelector('script[src="vendor/supabase.min.js"]'),
+      cdnScripts: [...document.querySelectorAll('script[src]')].filter(s => /^https?:/i.test(s.getAttribute('src'))).length,
+      sdkLoaded: !!window.supabase && !!sb,   // the vendored file actually works
+      csp: csp ? csp.getAttribute('content') : '',
+    };
+  });
+  expect(r.vendored).toBe(true);
+  expect(r.cdnScripts).toBe(0);              // zero third-party script origins
+  expect(r.sdkLoaded).toBe(true);
+  expect(r.csp).toContain("script-src 'self' 'unsafe-inline'");
+  expect(r.csp).toContain('connect-src \'self\' https://ghmdvkmempbnjcamqzuc.supabase.co');
+  expect(r.csp).toContain("object-src 'none'");
+});
+
 test('sync: foreground return and network-online trigger catch-up pulls (throttled)', async ({ page }) => {
   const r = await page.evaluate(async () => {
     let pulls = 0;
