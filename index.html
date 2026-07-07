@@ -490,6 +490,11 @@ body.map-mode .panel-meta { padding-top: 12px; padding-bottom: 0; }
   paint-order: stroke; stroke: var(--map-bg); stroke-width: 5px; stroke-linejoin: round;
 }
 .map-peak { cursor: pointer; }
+/* Invisible, generous hit target so the whole mountain area + its name label is
+   clickable/draggable — the line-art silhouette itself is a tiny, tapering
+   target and the label is pointer-events:none, so bare clicks fell through to
+   the background (read as "clicking does nothing" / "can't drag to a category"). */
+.map-peak-hit { fill: #000; fill-opacity: 0; stroke: none; pointer-events: all; }
 /* Peaks are etched line-art: ink outline, faint tint wash, shaded west flank. */
 .map-peak-body { fill: color-mix(in srgb, var(--map-ink) 9%, transparent); stroke: var(--map-ink); stroke-width: 2; stroke-linejoin: round; }
 .map-peak.has-cat .map-peak-body { fill: color-mix(in srgb, var(--cat-color) 20%, transparent); stroke: color-mix(in srgb, var(--cat-color) 70%, var(--map-ink)); }
@@ -4138,7 +4143,17 @@ function renderMap() {
     }
     const minsLbl = (t.mins || 0)
       ? `<text class="map-peak-mins" x="${c.cx.toFixed(1)}" y="${(c.cy + 46).toFixed(1)}">${fmtMins(t.mins)}</text>` : '';
+    // Transparent hit box: spans apex→below the name label, min ~80vb wide, so
+    // clicks/drags anywhere on the mountain (or its label) register on the peak
+    // instead of falling through to the map background. Rendered first (behind
+    // the visible strokes) — the apex start/done controls come later and stay
+    // on top, so they still win their own taps.
+    const hHalf = Math.max(peakWidth(t) + 8, 40);
+    const hTop = c.cy - peakHeight(t) - 8;
+    const hBot = c.cy + 32; // covers the name label (cy+26)
+    const hitBox = `<rect class="map-peak-hit" x="${(c.cx - hHalf).toFixed(1)}" y="${hTop.toFixed(1)}" width="${(hHalf * 2).toFixed(1)}" height="${(hBot - hTop).toFixed(1)}"/>`;
     peaks += `<g class="${cls}" data-task-id="${t.id}" data-cx="${c.cx.toFixed(1)}" data-cy="${c.cy.toFixed(1)}" ${catStyle}>`
+      + hitBox
       + `<path class="map-peak-body" d="${peakPathD(c.cx, c.cy, t)}"/>`
       + `<path class="map-peak-shade" d="${peakShadeD(c.cx, c.cy, t)}"/>`
       + `<path class="map-peak-detail" d="${peakDetailD(c.cx, c.cy, t)}"/>`
