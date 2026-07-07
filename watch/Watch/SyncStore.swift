@@ -16,6 +16,7 @@ struct FocusTask: Identifiable, Hashable {
 @MainActor
 final class SyncStore: ObservableObject {
     @Published var tasks: [FocusTask] = []
+    @Published var routines: [Routine] = []
     @Published var status = ""
     @Published var loading = false
 
@@ -29,6 +30,7 @@ final class SyncStore: ObservableObject {
         do {
             raw = try await fetchData()
             project()
+            parseRoutines()
             status = ""
         } catch {
             status = "Can't reach sync — check iPhone nearby / Wi-Fi."
@@ -67,6 +69,64 @@ final class SyncStore: ObservableObject {
                              secsRemaining: rem > 0 ? rem : mins * 60,
                              categoryName: catName(t["categoryId"]),
                              isMIT: t["isMIT"] as? Bool ?? false)
+        }
+    }
+
+    // Saved runs from the `routines` array, sorted by `order` like the web
+    // strip. Read-only: the watch never writes back to `routines`.
+    private func parseRoutines() {
+        let arr = raw["routines"] as? [[String: Any]] ?? []
+        let parsed: [(Int, Routine)] = arr.enumerated().compactMap { (i, r) in
+            guard let id = r["id"] as? String, !id.isEmpty else { return nil }
+            let stepsArr = r["steps"] as? [[String: Any]] ?? []
+            let steps: [RunStep] = stepsArr.compactMap { s in
+                guard let nm = s["name"] as? String else { return nil }
+                let mins = (s["mins"] as? NSNumber)?.intValue ?? 25
+                let gap = Gap(rawValue: (s["gapAfter"] as? String) ?? "none") ?? .none
+                return RunStep(name: nm, mins: max(1, min(480, mins)), gapAfter: gap)
+            }
+            guard !steps.isEmpty else { return nil }
+            let name = (r["name"] as? String) ?? "Untitled"
+            let auto = (r["autoFlow"] as? Bool) ?? false
+            let order = (r["order"] as? NSNumber)?.intValue ?? i
+            return (order, Routine(id: id, name: name, steps: steps, autoFlow: auto))
+        }
+        routines = parsed.sorted { $0.0 < $1.0 }.map { $0.1 }
+    }
+
+    // Log one finished run step to history ONLY — no task is created, so
+    // nothing can be orphaned if the watch suspends mid-run. Reports and the
+    // Done count read `history`, so this keeps them correct. Same pull-fresh →
+    // mutate → push, monotonic dataTimestamp, and lastClearedAt carried forward
+    // verbatim (whole blob re-sent) as every other write.
+    func logRunStep(name: String, mins: Int, secsSpent: Int) async -> Bool {
+        do { raw = try await fetchData() } catch {
+            status = "Offline — step not saved."
+            return false
+        }
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        var hist = raw["history"] as? [[String: Any]] ?? []
+        hist.insert(["id": "h_\(nowMs)",
+                     "name": name,
+                     "mins": mins,
+                     "secsSpent": max(0, secsSpent),
+                     "sessions": 0,
+                     "source": "routine",
+                     "completedAt": nowMs,
+                     "createdAt": nowMs], at: 0)
+        raw["history"] = hist
+
+        let oldTs = (raw["dataTimestamp"] as? NSNumber)?.intValue ?? 0
+        raw["dataTimestamp"] = max(oldTs + 1, nowMs)
+        raw["ts"] = nowMs
+
+        do {
+            try await push()
+            status = ""
+            return true
+        } catch {
+            status = "Offline — step not saved."
+            return false
         }
     }
 

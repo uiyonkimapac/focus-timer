@@ -9,8 +9,11 @@ struct FocusTimerWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TaskListView()
-                .environmentObject(store)
+            TabView {
+                TaskListView()      // Today's tasks
+                RoutineListView()   // Saved runs
+            }
+            .environmentObject(store)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await store.refresh() } }

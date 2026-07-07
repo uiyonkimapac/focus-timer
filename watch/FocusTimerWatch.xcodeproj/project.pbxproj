@@ -9,12 +9,15 @@
 /* Begin PBXBuildFile section */
 		04AF73C16BF4DEC0B1A24F59 /* WatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E1861987D74166D47AD3CE /* WatchApp.swift */; };
 		22092C2103CDB9CF1599AD15 /* SyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53552DD5F1A7C5DF61EDE1C5 /* SyncStore.swift */; };
+		62AD4CD7DA97EB305F5C3DAD /* RunPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056EAD6E4B4117C370AE4CA5 /* RunPlayerView.swift */; };
 		6367D3D0682A083A840CD83D /* PhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6A9F79CF63561EA4697EB1 /* PhoneApp.swift */; };
 		897793B448DCECE1362D9D9B /* TaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F835947362470E5F8BA2902 /* TaskListView.swift */; };
 		8FE247FFBBEDE14B94416EF3 /* FocusTimerWatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 1F502570FD4B125B405D282A /* FocusTimerWatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C928293A6C0D4CBCC505CD68 /* TimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC92EC4EBF0B6BB1D0B6BBEA /* TimerView.swift */; };
 		CFA7C5B882D3BCD641370484 /* SyncConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F713A5E4214BD6375CE96B /* SyncConfig.swift */; };
+		CFFAF3AC8EBB055CEE060987 /* RoutineListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F270DC79BCDE874043D8152 /* RoutineListView.swift */; };
 		D317AD4C8F46B64E943B10E0 /* SyncConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F713A5E4214BD6375CE96B /* SyncConfig.swift */; };
+		E3CD15AF9BD995ED86859ADB /* RunModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2494C5E061B9E62605AD1BC /* RunModels.swift */; };
 		E4D39602BFB6E3EE1E62A076 /* WatchConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A857FFD8BC7F8CD72E2F0C9 /* WatchConnector.swift */; };
 /* End PBXBuildFile section */
 
@@ -43,16 +46,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		056EAD6E4B4117C370AE4CA5 /* RunPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunPlayerView.swift; sourceTree = "<group>"; };
 		1A857FFD8BC7F8CD72E2F0C9 /* WatchConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnector.swift; sourceTree = "<group>"; };
 		1F502570FD4B125B405D282A /* FocusTimerWatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FocusTimerWatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2623293EA43A6B3758440CCE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2F835947362470E5F8BA2902 /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
+		3F270DC79BCDE874043D8152 /* RoutineListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineListView.swift; sourceTree = "<group>"; };
 		42F713A5E4214BD6375CE96B /* SyncConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConfig.swift; sourceTree = "<group>"; };
 		53552DD5F1A7C5DF61EDE1C5 /* SyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStore.swift; sourceTree = "<group>"; };
 		7D21D6D33DC5853958D67F90 /* FocusTimerPhone.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FocusTimerPhone.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8464A14EA11D6FDD145A72E5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9A6A9F79CF63561EA4697EB1 /* PhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneApp.swift; sourceTree = "<group>"; };
 		A9E1861987D74166D47AD3CE /* WatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchApp.swift; sourceTree = "<group>"; };
+		B2494C5E061B9E62605AD1BC /* RunModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunModels.swift; sourceTree = "<group>"; };
 		BC92EC4EBF0B6BB1D0B6BBEA /* TimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -89,6 +95,9 @@
 			isa = PBXGroup;
 			children = (
 				2623293EA43A6B3758440CCE /* Info.plist */,
+				3F270DC79BCDE874043D8152 /* RoutineListView.swift */,
+				B2494C5E061B9E62605AD1BC /* RunModels.swift */,
+				056EAD6E4B4117C370AE4CA5 /* RunPlayerView.swift */,
 				53552DD5F1A7C5DF61EDE1C5 /* SyncStore.swift */,
 				2F835947362470E5F8BA2902 /* TaskListView.swift */,
 				BC92EC4EBF0B6BB1D0B6BBEA /* TimerView.swift */,
@@ -181,6 +190,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CFFAF3AC8EBB055CEE060987 /* RoutineListView.swift in Sources */,
+				E3CD15AF9BD995ED86859ADB /* RunModels.swift in Sources */,
+				62AD4CD7DA97EB305F5C3DAD /* RunPlayerView.swift in Sources */,
 				D317AD4C8F46B64E943B10E0 /* SyncConfig.swift in Sources */,
 				22092C2103CDB9CF1599AD15 /* SyncStore.swift in Sources */,
 				897793B448DCECE1362D9D9B /* TaskListView.swift in Sources */,
