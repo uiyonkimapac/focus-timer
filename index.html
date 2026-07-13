@@ -1275,6 +1275,34 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
 .sync-badge:hover { border-color: var(--accent); color: var(--accent); }
 .sync-badge.connected { color: var(--green); border-color: rgba(41,128,185,0.4); }
 
+/* remote control — device rows in the Remote modal */
+.remote-dev {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin-bottom: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.rd-info { flex: 1; min-width: 0; }
+.rd-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rd-state {
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text3);
+  margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.rd-state.live { color: var(--accent); }
+.rd-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.rd-btn {
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text2); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.18s;
+}
+.rd-btn:hover { color: var(--accent); border-color: var(--accent); }
+
 /* per-task start button */
 .btn-start-task {
   width: 28px; height: 28px;
@@ -1925,6 +1953,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
     <span class="logo-text">Now This</span>
     <button class="btn-theme" id="btnTheme" onclick="toggleTheme()" title="Toggle light / dark">☽</button>
     <span class="sync-badge" id="syncBadge" onclick="openSyncModal()" title="Multi-device sync">Sync off</span>
+    <span class="sync-badge" id="remoteBadge" onclick="openRemoteModal()" title="Remote-control the timer on other synced devices">🎛</span>
   </div>
   <div class="mobile-timer-bar" id="mTimerBar">
     <button class="mtb-play" id="mPlay" onclick="toggleTimer()" title="Start / pause">▶</button>
@@ -2128,6 +2157,26 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
   </div>
 </div>
 
+<!-- REMOTE CONTROL MODAL -->
+<div class="modal-overlay" id="remoteModal">
+  <div class="modal">
+    <div class="modal-title">🎛 Remote control</div>
+    <div class="modal-sub">
+      Start, pause, or reset the timer on any other device connected with the same
+      sync code — your phone becomes the remote for your desk.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <span style="font-size:11px;color:var(--text3);letter-spacing:0.5px;white-space:nowrap;">THIS DEVICE</span>
+      <input class="task-inp" id="deviceNameInput" maxlength="40" style="flex:1;" onchange="renameDevice(this.value)" title="How this device appears on other devices"/>
+    </div>
+    <div id="remoteDeviceList"></div>
+    <div class="import-hint" id="remoteHint"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRemoteModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Undo toast (Phase 1) -->
 <div class="undo-toast" id="undoToast">
   <span class="undo-msg" id="undoMsg">Action undone</span>
@@ -2136,6 +2185,9 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 <div class="undo-toast" id="storageToast">
   <span class="undo-msg">⚠ Storage full — your changes weren't saved. Export a report.</span>
   <button class="undo-btn" onclick="openSaveModal();document.getElementById('storageToast').classList.remove('open')">Save Report</button>
+</div>
+<div class="undo-toast" id="remoteToast">
+  <span class="undo-msg" id="remoteToastMsg"></span>
 </div>
 
 <!-- supabase-js is VENDORED (not CDN): a compromised CDN would mean arbitrary
@@ -2157,6 +2209,8 @@ const STORAGE_STATS      = 'focustimer_stats';
 const STORAGE_SYNCCODE   = 'focustimer_synccode';
 const STORAGE_CATEGORIES = 'focustimer_categories';
 const STORAGE_ROUTINES   = 'focustimer_routines';
+const STORAGE_DEVICEID   = 'focustimer_deviceid';
+const STORAGE_DEVICENAME = 'focustimer_devicename';
 
 // Vintage-cartographic category palette — muted mid-tones that read on both the
 // cream (light) and dark-parchment (dark) map. Existing categories keep their
@@ -2424,19 +2478,25 @@ function subscribeRealtime() {
   if (!sb || !syncCode) return;
   if (syncChannel) { sb.removeChannel(syncChannel); syncChannel = null; }
   const ch = sb
-    .channel('focus_sync_' + syncCode)
+    .channel('focus_sync_' + syncCode,
+      // presence keyed by deviceId → the Remote sheet can list devices; broadcast
+      // carries the transient remote-control commands (never persisted).
+      { config: { broadcast: { self: false }, presence: { key: deviceId } } })
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'focus_sync', filter: 'sync_id=eq.' + syncCode },
       (payload) => {
         const row = payload.new || payload.record;
         if (row && row.data) applyRemote(row.data);
       }
-    );
+    )
+    .on('broadcast', { event: 'remote_cmd' }, (msg) => handleRemoteCmd(msg && msg.payload))
+    .on('presence', { event: 'sync' }, () => renderRemoteDevices());
   syncChannel = ch;
   ch.subscribe((status) => {
     if (ch !== syncChannel) return; // a stale channel we already replaced/removed
     if (status === 'SUBSCRIBED') {
       resubDelay = 5000; clearTimeout(resubTimer); // healthy — reset the backoff
+      try { ch.track(presencePayload()); } catch(e) {} // announce this device
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
       scheduleResubscribe();
     }
@@ -2488,6 +2548,222 @@ function disconnectSync() {
   try { localStorage.removeItem(STORAGE_SYNCCODE); } catch(e) {}
   document.getElementById('btnSyncDisconnect').style.display = 'none';
   setSyncStatus('Disconnected.');
+  renderRemoteDevices(); // Remote sheet (if open) flips to its "not connected" hint
+}
+
+// ── REMOTE CONTROL ──
+// Drive the timer on another device that shares this sync code — phone as a
+// remote for the desktop, tablet on the shelf as a wall clock, etc. Rides the
+// same realtime channel as sync:
+//  - PRESENCE: every device announces {name, running, mode, remaining, at, task}
+//    on join and re-announces on timer transitions. The Remote sheet lists the
+//    other devices and extrapolates their live countdown locally from
+//    (remaining, at) — no per-second network traffic.
+//  - BROADCAST 'remote_cmd': transient {to, from, fromName, cmd}, never stored.
+//    Receivers apply whitelisted commands through the normal timer functions,
+//    so a remote tap behaves exactly like a local one (sounds, stats, overtime).
+// Commands are explicit (start/pause, not toggle) so a stale controller view
+// can't flip a timer the wrong way — re-sending 'pause' to a paused timer is a
+// no-op. Two tabs in one browser share a deviceId: both obey commands sent to
+// it, which is the least-surprising behavior for a duplicated tab.
+let deviceId = '', deviceName = '';
+(function initDeviceIdentity() {
+  try {
+    deviceId   = localStorage.getItem(STORAGE_DEVICEID) || '';
+    deviceName = localStorage.getItem(STORAGE_DEVICENAME) || '';
+  } catch(e) {}
+  if (!deviceId) {
+    deviceId = 'dev-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 0xffffff).toString(36);
+    try { localStorage.setItem(STORAGE_DEVICEID, deviceId); } catch(e) {}
+  }
+  if (!deviceName) deviceName = guessDeviceName(); // don't persist a guess — UA can change
+})();
+
+function guessDeviceName() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone/i.test(ua))    return 'iPhone';
+  if (/iPad/i.test(ua))      return 'iPad';
+  if (/Android/i.test(ua))   return /Mobile/i.test(ua) ? 'Android phone' : 'Android tablet';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/Windows/i.test(ua))   return 'Windows PC';
+  if (/Linux/i.test(ua))     return 'Linux';
+  return 'Device';
+}
+
+function renameDevice(v) {
+  deviceName = String(v || '').trim().slice(0, 40) || guessDeviceName();
+  try { localStorage.setItem(STORAGE_DEVICENAME, deviceName); } catch(e) {}
+  const inp = document.getElementById('deviceNameInput');
+  if (inp) inp.value = deviceName;
+  announcePresence();
+}
+
+// What this device shows on everyone else's Remote sheet.
+function presencePayload() {
+  const t = tasks.find(x => x.id === activeId);
+  return {
+    name: deviceName,
+    running, mode, remaining, totalSec,
+    at: Date.now(),
+    task: (t && !t.done) ? String(t.name).slice(0, 80) : '',
+  };
+}
+
+// Re-announce after a state transition. Coalesced: pause→reset→setActive fire
+// in bursts, and each track() is a network round-trip.
+let presenceTrackTimer = null;
+function announcePresence() {
+  if (!syncChannel || presenceTrackTimer) return;
+  presenceTrackTimer = setTimeout(() => {
+    presenceTrackTimer = null;
+    if (syncChannel && syncChannel.state === 'joined') {
+      try { syncChannel.track(presencePayload()); } catch(e) {}
+    }
+  }, 80);
+}
+
+const REMOTE_CMDS = { start: 'started', pause: 'paused', reset: 'reset', skip: 'skipped' };
+// hasOwnProperty, not [cmd]: a forged cmd of '__proto__'/'toString' would be
+// truthy through the prototype chain and slip past the whitelist.
+function isRemoteCmd(cmd) {
+  return typeof cmd === 'string' && Object.prototype.hasOwnProperty.call(REMOTE_CMDS, cmd);
+}
+
+function sendRemoteCmd(toId, cmd) {
+  if (!syncChannel || !isRemoteCmd(cmd)) return;
+  try {
+    syncChannel.send({
+      type: 'broadcast', event: 'remote_cmd',
+      payload: { to: String(toId), from: deviceId, fromName: deviceName, cmd },
+    });
+  } catch(e) {}
+}
+
+// Ingestion path for commands off the wire — treat every field as hostile.
+function handleRemoteCmd(p) {
+  if (!p || typeof p !== 'object') return;
+  if (!isRemoteCmd(p.cmd)) return;                    // whitelist only
+  if (p.to !== deviceId && p.to !== '*') return;      // not addressed to us
+  if (p.from === deviceId) return;                    // our own echo
+  if      (p.cmd === 'start') startTimer();
+  else if (p.cmd === 'pause') pauseTimer();
+  else if (p.cmd === 'reset') resetTimer();
+  else if (p.cmd === 'skip')  skipSession();
+  renderDots();
+  const who = (typeof p.fromName === 'string' && p.fromName.trim())
+    ? p.fromName.trim().slice(0, 40) : 'another device';
+  showRemoteToast('🎛 Timer ' + REMOTE_CMDS[p.cmd] + ' from ' + who);
+}
+
+let remoteToastTimer = null;
+function showRemoteToast(msg) {
+  const t = document.getElementById('remoteToast');
+  if (!t) return;
+  document.getElementById('remoteToastMsg').textContent = msg; // textContent — names can't inject
+  t.classList.add('open');
+  clearTimeout(remoteToastTimer);
+  remoteToastTimer = setTimeout(() => t.classList.remove('open'), 3500);
+}
+
+// Other devices currently on the channel, sanitized. presenceState() maps
+// key → array of metas (one per tab tracking that key); newest meta wins.
+function otherDevices() {
+  if (!syncChannel || typeof syncChannel.presenceState !== 'function') return [];
+  let state = {};
+  try { state = syncChannel.presenceState() || {}; } catch(e) { return []; }
+  const out = [];
+  for (const key of Object.keys(state)) {
+    if (key === deviceId) continue;
+    const metas = state[key];
+    const m = Array.isArray(metas) && metas.length ? metas[metas.length - 1] : null;
+    if (!m) continue;
+    out.push({
+      id: key,
+      name: (typeof m.name === 'string' && m.name.trim()) ? m.name.trim().slice(0, 40) : 'Device',
+      running: !!m.running,
+      mode: (m.mode === 'short' || m.mode === 'long') ? m.mode : 'focus',
+      remaining: Number(m.remaining) || 0,
+      totalSec: Math.max(1, Number(m.totalSec) || 1),
+      at: Number(m.at) || Date.now(),
+      task: (typeof m.task === 'string') ? m.task.slice(0, 80) : '',
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+// One status line, extrapolated locally so a running device counts down live
+// between presence updates (same wall-clock math as tick()).
+function remoteStateText(d) {
+  let rem = d.remaining;
+  if (d.running) rem -= Math.round((Date.now() - d.at) / 1000);
+  const floor = (d.mode === 'focus') ? -d.totalSec : 0;
+  rem = Math.max(floor, rem);
+  const neg = rem < 0, abs = Math.abs(rem);
+  const mm = String(Math.floor(abs / 60)).padStart(2, '0');
+  const ss = String(abs % 60).padStart(2, '0');
+  const modeLabel = neg ? 'Overtime' : (MODES[d.mode] ? MODES[d.mode].label : '');
+  return (d.running ? '▶ ' : '⏸ ') + (neg ? '-' : '') + mm + ':' + ss +
+         ' · ' + modeLabel + (d.task ? ' — ' + d.task : '');
+}
+
+function renderRemoteDevices() {
+  const list = document.getElementById('remoteDeviceList');
+  const hint = document.getElementById('remoteHint');
+  const modal = document.getElementById('remoteModal');
+  if (!list || !hint || !modal || !modal.classList.contains('open')) return;
+  list.innerHTML = '';
+  if (!syncCode) {
+    hint.textContent = 'Not connected. Open the sync badge (top of the panel) and connect a code first — remote control rides on sync.';
+    return;
+  }
+  const devs = otherDevices();
+  if (!devs.length) {
+    hint.textContent = 'No other devices online. Open the app on another device with the same sync code and it appears here.';
+    return;
+  }
+  hint.textContent = 'Controls act on the other device — its sounds and stats behave as if tapped there.';
+  for (const d of devs) {
+    const row = document.createElement('div');
+    row.className = 'remote-dev';
+    const info = document.createElement('div');
+    info.className = 'rd-info';
+    const name = document.createElement('div');
+    name.className = 'rd-name';
+    name.textContent = d.name; // textContent — remote names can't inject
+    const state = document.createElement('div');
+    state.className = 'rd-state' + (d.running ? ' live' : '');
+    state.textContent = remoteStateText(d);
+    info.appendChild(name); info.appendChild(state);
+    const btns = document.createElement('div');
+    btns.className = 'rd-btns';
+    const mk = (label, title, cmd) => {
+      const b = document.createElement('button');
+      b.className = 'rd-btn'; b.textContent = label; b.title = title;
+      b.onclick = () => { sendRemoteCmd(d.id, cmd); };
+      btns.appendChild(b);
+    };
+    if (d.running) mk('⏸', 'Pause on ' + d.name, 'pause');
+    else           mk('▶', 'Start on ' + d.name, 'start');
+    mk('↺', 'Reset on ' + d.name, 'reset');
+    mk('⏭', 'Skip session on ' + d.name, 'skip');
+    row.appendChild(info); row.appendChild(btns);
+    list.appendChild(row);
+  }
+}
+
+let remoteRenderTimer = null;
+function openRemoteModal() {
+  const inp = document.getElementById('deviceNameInput');
+  if (inp) inp.value = deviceName;
+  document.getElementById('remoteModal').classList.add('open');
+  renderRemoteDevices();
+  clearInterval(remoteRenderTimer);
+  remoteRenderTimer = setInterval(renderRemoteDevices, 1000); // live countdowns
+}
+function closeRemoteModal() {
+  document.getElementById('remoteModal').classList.remove('open');
+  clearInterval(remoteRenderTimer); remoteRenderTimer = null;
 }
 
 function loadAll() {
@@ -2568,6 +2844,7 @@ function setMode(m, el) {
   document.getElementById('modeLabel').textContent = cfg.label;
   document.body.classList.toggle('break', cfg.break);
   updateDisplay(); updateRing(); updateTopBar();
+  announcePresence();
 }
 
 function toggleTimer() {
@@ -2593,6 +2870,7 @@ function startTimer() {
   playSound('start');
   if (window.Sanctuary) Sanctuary.onStart();
   if (typeof updateMobileBar === 'function') updateMobileBar();
+  announcePresence();
 }
 
 function flushElapsed() {
@@ -2619,6 +2897,7 @@ function pauseTimer() {
   flushElapsed(); // credit any partial minutes when paused
   if (window.Sanctuary) Sanctuary.onPause();
   if (typeof updateMobileBar === 'function') updateMobileBar();
+  announcePresence();
 }
 
 function tick() {
@@ -2852,6 +3131,7 @@ function setActive(id, autoStart) {
   }
 
   renderActivePill(); renderTasks(); renderDots();
+  announcePresence();
 }
 
 function renderActivePill() {

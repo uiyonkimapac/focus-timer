@@ -171,6 +171,16 @@ For a richer, formatted snapshot (active + completed + stats), use **Save Report
 
 Open **Sync** (the badge at the top of the left panel) → enter the **same sync code** on each device. Tasks, categories, history, and stats sync in realtime. Generate a fresh code with **✨ New** on your first device, then enter that code on the others. Without a code the app is 100% local — no cloud, no account.
 
+### 🎛 Remote control
+
+With sync connected, tap the **🎛 badge** (next to the sync badge) to open the Remote sheet. Every other device online with your sync code appears with a **live view of its timer** — running or paused, time left, and the task it's on. From there:
+
+- **▶ / ⏸** — start or pause the timer *on that device*.
+- **↺** — reset its current session.
+- **⏭** — skip to the end of its session.
+
+The other device reacts exactly as if you'd tapped it there — same sounds, stats, and overtime rules — and shows a small toast naming the device that sent the command. Rename how this device appears to others with the **This device** field at the top of the sheet. Commands are instant and never stored; if a device is offline it simply doesn't appear in the list.
+
 ---
 
 ## 7. Keyboard shortcuts
