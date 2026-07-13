@@ -686,3 +686,100 @@ test('dragging a peak into the fog bank pushes it to tomorrow and bumps the stre
   expect(res.peakIds).not.toContain(res.id);  // dragged peak left the board
   expect(res.peakIds).toContain(res.keepId);
 });
+
+// ── Remote control (📡) ── message handlers are pure functions of untrusted
+// payloads, so we drive them directly — no websocket needed.
+
+test('remote control: peer state renders an escaped device card with a live clock', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    syncCode = 'FT-TEST-01'; // simulate a connected session (no network needed)
+    onRemoteState({
+      id: 'peer_1', name: '<img src=x onerror=alert(1)>iPhone',
+      running: true, mode: 'focus', remaining: 600, totalSec: 1500,
+      task: 'Write <b>docs</b>',
+    });
+    openRemoteModal();
+    const html = document.getElementById('remoteList').innerHTML;
+    closeRemoteModal();
+    syncCode = null;
+    return {
+      cards: (html.match(/class="remote-card/g) || []).length,
+      injected: html.includes('<img') || html.includes('<b>'),
+      hasName: html.includes('iPhone'),
+      hasClock: html.includes('10:00'),
+      running: html.includes('Running'),
+    };
+  });
+  expect(r.cards).toBe(1);
+  expect(r.injected).toBe(false);   // hostile name/task neutered by esc()
+  expect(r.hasName).toBe(true);
+  expect(r.hasClock).toBe(true);
+  expect(r.running).toBe(true);
+});
+
+test('remote control: rejects forged ids, self-echo, and stale peers', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    remotePeers = {};
+    onRemoteState({ id: 'bad id\' onclick="x"', running: false, mode: 'focus', remaining: 1, totalSec: 1 });
+    onRemoteState({ id: deviceId, running: false, mode: 'focus', remaining: 1, totalSec: 1 }); // our own echo
+    onRemoteState(null);
+    onRemoteState({ id: 'ok_peer', running: false, mode: 'nope', remaining: 1e12, totalSec: -5 });
+    const accepted = Object.keys(remotePeers);
+    const p = remotePeers['ok_peer'];
+    // stale prune: pretend the peer went quiet past the threshold
+    p.seenAt = Date.now() - 80000;
+    syncCode = 'FT-TEST-01';
+    openRemoteModal();
+    const empty = document.getElementById('remoteList').innerHTML.includes('remote-empty');
+    closeRemoteModal();
+    syncCode = null;
+    return { accepted, mode: p.mode, remaining: p.remaining, totalSec: p.totalSec, empty };
+  });
+  expect(r.accepted).toEqual(['ok_peer']);  // only the well-formed id got in
+  expect(r.mode).toBe('focus');             // unknown mode coerced to a real one
+  expect(r.remaining).toBeLessThanOrEqual(86400);
+  expect(r.totalSec).toBe(0);               // negative clamped
+  expect(r.empty).toBe(true);               // stale peer pruned from the list
+});
+
+test('remote control: addressed commands drive the timer, others are ignored', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    onRemoteCmd({ to: 'someone-else', from: 'p1', action: 'start' });
+    out.otherTargetIgnored = !running;
+    onRemoteCmd({ to: deviceId, from: 'p1', fromName: 'iPhone', action: 'start' });
+    out.started = running;
+    onRemoteCmd({ to: deviceId, from: 'p1', fromName: 'iPhone', action: 'pause' });
+    out.paused = !running;
+    remaining = 100;
+    onRemoteCmd({ to: deviceId, from: 'p1', action: 'reset' });
+    out.resetToFull = remaining === totalSec;
+    onRemoteCmd({ to: deviceId, from: 'p1', action: 'skip' });
+    out.skippedToZero = remaining === 0;
+    onRemoteCmd({ to: deviceId, from: 'p1', action: 'evalEverything' }); // not whitelisted
+    out.unknownActionIgnored = !running && remaining === 0;
+    resetTimer();
+    return out;
+  });
+  expect(r.otherTargetIgnored).toBe(true);
+  expect(r.started).toBe(true);
+  expect(r.paused).toBe(true);
+  expect(r.resetToFull).toBe(true);
+  expect(r.skippedToZero).toBe(true);
+  expect(r.unknownActionIgnored).toBe(true);
+});
+
+test('remote control: 📡 button appears only while sync is connected', async ({ page }) => {
+  const r = await page.evaluate(() => {
+    const btn = document.getElementById('btnRemote');
+    const before = btn.style.display;
+    syncCode = 'FT-TEST-01'; setSyncStatus('Connected');
+    const connected = btn.style.display;
+    syncCode = null; setSyncStatus('Disconnected.');
+    const after = btn.style.display;
+    return { before, connected, after };
+  });
+  expect(r.before).toBe('none');
+  expect(r.connected).not.toBe('none');
+  expect(r.after).toBe('none');
+});

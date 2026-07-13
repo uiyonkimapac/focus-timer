@@ -1695,6 +1695,39 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 .undo-toast .undo-btn:hover { filter: brightness(1.12); }
 body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 
+/* ── REMOTE CONTROL (📡) — drive the timer on other synced devices ── */
+.remote-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 16px; max-height: 320px; overflow-y: auto;
+}
+.remote-empty {
+  text-align: center; color: var(--text3); font-size: 12.5px;
+  padding: 24px 12px; line-height: 1.7;
+  border: 1px dashed var(--border2); border-radius: var(--radius-sm);
+}
+.remote-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.remote-card.running { border-color: var(--accent); }
+.remote-info { flex: 1; min-width: 0; }
+.remote-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.remote-sub {
+  font-size: 11px; color: var(--text3); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.remote-clock { text-align: right; }
+.remote-time { font-family: 'DM Mono', monospace; font-size: 17px; color: var(--text); }
+.remote-time.over { color: var(--red); }
+.remote-state { font-size: 10px; color: var(--text3); letter-spacing: 0.5px; text-transform: uppercase; }
+.remote-card.running .remote-state { color: var(--accent); }
+.remote-btns { display: flex; gap: 6px; }
+.remote-btns .btn-ctrl { width: 30px; height: 30px; font-size: 12px; flex: none; }
+
 /* ── PHONE IN LANDSCAPE (short height) ──────────────────────────────────────
    Holding the phone horizontally gives a wide-but-short screen. The stacked
    portrait layout wastes it (the list/map ends up half off-screen), so pin a
@@ -1960,6 +1993,7 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
     <button class="btn-ctrl" title="Reset (R)" onclick="resetTimer()">↺</button>
     <button class="btn-play" id="btnPlay" onclick="toggleTimer()">▶</button>
     <button class="btn-ctrl" title="Skip" onclick="skipSession()">⏭</button>
+    <button class="btn-ctrl" id="btnRemote" onclick="openRemoteModal()" title="Remote control — synced devices" style="display:none;">📡</button>
   </div>
   <div class="session-row" id="sessionDots"></div>
 
@@ -2113,7 +2147,8 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
     <div class="modal-title">🔗 Multi-device sync</div>
     <div class="modal-sub">
       Use one <b>sync code</b> on every device — tasks and history stay in sync in realtime.<br>
-      Generate a code on your first device, then enter the same code on others.
+      Generate a code on your first device, then enter the same code on others.<br>
+      Connected devices can also <b>remote-control</b> each other's timer (📡 next to the timer controls).
     </div>
     <div style="display:flex;gap:8px;margin-bottom:10px;">
       <input class="task-inp" id="syncCodeInput" placeholder="e.g. FT-A8K2-X9" maxlength="32" style="text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace;"/>
@@ -2122,8 +2157,24 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
     <div class="import-hint" id="syncStatus">Not connected.</div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="disconnectSync()" id="btnSyncDisconnect" style="display:none;">Disconnect</button>
+      <button class="btn-cancel" onclick="closeSyncModal();openRemoteModal()" id="btnSyncRemote" style="display:none;">📡 Remote</button>
       <button class="btn-cancel" onclick="closeSyncModal()">Close</button>
       <button class="btn-confirm" onclick="connectSync()">Connect</button>
+    </div>
+  </div>
+</div>
+
+<!-- REMOTE CONTROL MODAL -->
+<div class="modal-overlay" id="remoteModal">
+  <div class="modal">
+    <div class="modal-title">📡 Remote control</div>
+    <div class="modal-sub">
+      Other devices on <b id="remoteSyncCode"></b> show up here.
+      Start, pause, reset, or skip their timer from this one.
+    </div>
+    <div class="remote-list" id="remoteList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRemoteModal()">Close</button>
     </div>
   </div>
 </div>
@@ -2136,6 +2187,9 @@ body.light .undo-toast { box-shadow: 0 8px 30px rgba(0,0,0,0.18); }
 <div class="undo-toast" id="storageToast">
   <span class="undo-msg">⚠ Storage full — your changes weren't saved. Export a report.</span>
   <button class="undo-btn" onclick="openSaveModal();document.getElementById('storageToast').classList.remove('open')">Save Report</button>
+</div>
+<div class="undo-toast" id="remoteToast">
+  <span class="undo-msg" id="remoteToastMsg"></span>
 </div>
 
 <!-- supabase-js is VENDORED (not CDN): a compromised CDN would mean arbitrary
@@ -2431,12 +2485,18 @@ function subscribeRealtime() {
         const row = payload.new || payload.record;
         if (row && row.data) applyRemote(row.data);
       }
-    );
+    )
+    // Remote control rides the same channel as ephemeral broadcasts (never hits
+    // the DB): peers announce their timer state, and any peer can send a command.
+    .on('broadcast', { event: 'timer_state' }, (msg) => onRemoteState(msg.payload))
+    .on('broadcast', { event: 'timer_cmd' },   (msg) => onRemoteCmd(msg.payload))
+    .on('broadcast', { event: 'timer_ping' },  (msg) => onRemotePing(msg.payload));
   syncChannel = ch;
   ch.subscribe((status) => {
     if (ch !== syncChannel) return; // a stale channel we already replaced/removed
     if (status === 'SUBSCRIBED') {
       resubDelay = 5000; clearTimeout(resubTimer); // healthy — reset the backoff
+      broadcastTimerState(); // announce ourselves to any open Remote panel
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
       scheduleResubscribe();
     }
@@ -2451,11 +2511,13 @@ function setSyncStatus(msg) {
     badge.textContent = syncCode ? ('🔗 ' + syncCode) : 'Sync off';
     badge.classList.toggle('connected', !!syncCode);
   }
+  updateRemoteButton();
 }
 
 function openSyncModal() {
   document.getElementById('syncCodeInput').value = syncCode || '';
   document.getElementById('btnSyncDisconnect').style.display = syncCode ? '' : 'none';
+  document.getElementById('btnSyncRemote').style.display = syncCode ? '' : 'none';
   setSyncStatus(syncCode ? ('Connected as ' + syncCode) : 'Not connected.');
   document.getElementById('syncModal').classList.add('open');
 }
@@ -2487,8 +2549,199 @@ function disconnectSync() {
   syncCode = null;
   try { localStorage.removeItem(STORAGE_SYNCCODE); } catch(e) {}
   document.getElementById('btnSyncDisconnect').style.display = 'none';
+  remotePeers = {};
+  closeRemoteModal();
   setSyncStatus('Disconnected.');
 }
+
+// ── REMOTE CONTROL (📡) ──
+// Any device on the sync code can drive the timer on any other: peers announce
+// their timer state over the realtime channel (broadcast only — nothing is
+// persisted), and commands are addressed to one device id. Everything arriving
+// here is untrusted (anyone who knows the sync code can send it), so ids are
+// format-checked, strings truncated + escaped, and actions whitelisted — a
+// hostile peer can at worst start/pause a timer, never touch data.
+const STORAGE_DEVICEID  = 'focustimer_deviceId';
+const REMOTE_ID_RE      = /^[A-Za-z0-9_-]{1,32}$/;
+const REMOTE_STALE_MS   = 75000; // background tabs throttle timers to ~1/min — outlive one missed beat
+const REMOTE_ACTIONS    = { start: 1, pause: 1, reset: 1, skip: 1 };
+const REMOTE_MAX_PEERS  = 16;
+let remotePeers = {};        // deviceId → last announced state (+ seenAt, our clock)
+let remoteRenderTimer = null;
+let remoteToastTimer = null;
+
+const deviceId = (() => {
+  try {
+    const saved = localStorage.getItem(STORAGE_DEVICEID);
+    if (saved && REMOTE_ID_RE.test(saved)) return saved;
+  } catch(e) {}
+  const id = 'D' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+  try { localStorage.setItem(STORAGE_DEVICEID, id); } catch(e) {}
+  return id;
+})();
+
+function deviceLabel() {
+  const ua = navigator.userAgent || '';
+  const os = /iPhone/.test(ua) ? 'iPhone'
+    : /iPad/.test(ua) ? 'iPad'
+    : /Android/.test(ua) ? 'Android'
+    : /Mac/.test(ua) ? 'Mac'
+    : /Windows/.test(ua) ? 'Windows'
+    : /Linux/.test(ua) ? 'Linux' : 'Device';
+  const br = /Edg\//.test(ua) ? 'Edge'
+    : /Chrome\//.test(ua) ? 'Chrome'
+    : /Firefox\//.test(ua) ? 'Firefox'
+    : /Safari\//.test(ua) ? 'Safari' : '';
+  return br ? os + ' · ' + br : os;
+}
+
+function remoteSend(event, payload) {
+  if (!syncChannel || syncChannel.state !== 'joined') return;
+  try { syncChannel.send({ type: 'broadcast', event, payload }); } catch(e) {}
+}
+
+function broadcastTimerState() {
+  const t = tasks.find(x => x.id === activeId);
+  remoteSend('timer_state', {
+    id: deviceId, name: deviceLabel(),
+    running, mode, remaining, totalSec,
+    task: (t && !t.done) ? String(t.name).slice(0, 60) : '',
+  });
+}
+
+function onRemoteState(p) {
+  if (!p || typeof p !== 'object') return;
+  const id = String(p.id || '');
+  if (!REMOTE_ID_RE.test(id) || id === deviceId) return;
+  if (!remotePeers[id] && Object.keys(remotePeers).length >= REMOTE_MAX_PEERS) return;
+  remotePeers[id] = {
+    name: String(p.name || 'Device').slice(0, 40),
+    running: !!p.running,
+    mode: MODES[p.mode] ? p.mode : 'focus',
+    remaining: Math.max(-86400, Math.min(86400, Math.round(Number(p.remaining) || 0))),
+    totalSec:  Math.max(0, Math.min(86400, Math.round(Number(p.totalSec) || 0))),
+    task: String(p.task || '').slice(0, 60),
+    seenAt: Date.now(), // OUR clock — the countdown extrapolates from receipt, immune to peer clock skew
+  };
+  renderRemoteList();
+}
+
+function onRemoteCmd(p) {
+  if (!p || typeof p !== 'object') return;
+  if (String(p.to) !== deviceId) return; // addressed to someone else
+  const action = String(p.action || '');
+  if (!REMOTE_ACTIONS[action]) return;
+  if (action === 'start')      { if (!running) { startTimer(); renderDots(); } }
+  else if (action === 'pause') { if (running)  { pauseTimer(); renderDots(); } }
+  else if (action === 'reset') resetTimer();
+  else if (action === 'skip')  skipSession();
+  const who = String(p.fromName || 'another device').slice(0, 40);
+  const verb = { start: 'Started', pause: 'Paused', reset: 'Reset', skip: 'Skipped' }[action];
+  showRemoteToast('📡 ' + verb + ' from ' + who);
+  broadcastTimerState(); // controller sees the result immediately, not on the next beat
+}
+
+function onRemotePing(p) {
+  if (p && String(p.id || '') === deviceId) return;
+  broadcastTimerState(); // someone opened their Remote panel — announce ourselves
+}
+
+function sendRemoteCmd(targetId, action) {
+  if (!REMOTE_ID_RE.test(String(targetId)) || !REMOTE_ACTIONS[action]) return;
+  remoteSend('timer_cmd', { to: targetId, from: deviceId, fromName: deviceLabel(), action });
+  // Optimistic local echo so the card doesn't lag until the target's reply lands.
+  const p = remotePeers[targetId];
+  if (p) {
+    if (action === 'start')      { p.running = true;  p.seenAt = Date.now(); }
+    else if (action === 'pause') { p.running = false; }
+    else if (action === 'reset') { p.running = false; p.remaining = p.totalSec; }
+    else if (action === 'skip')  { p.running = false; p.remaining = 0; }
+    renderRemoteList();
+  }
+}
+
+function showRemoteToast(msg) {
+  const t = document.getElementById('remoteToast');
+  if (!t) return;
+  document.getElementById('remoteToastMsg').textContent = msg;
+  t.classList.add('open');
+  clearTimeout(remoteToastTimer);
+  remoteToastTimer = setTimeout(() => t.classList.remove('open'), 4000);
+}
+
+function updateRemoteButton() {
+  const b = document.getElementById('btnRemote');
+  if (b) b.style.display = syncCode ? '' : 'none';
+}
+
+function fmtRemoteClock(secs) {
+  const neg = secs < 0, a = Math.abs(secs);
+  return (neg ? '-' : '') + String(Math.floor(a / 60)).padStart(2, '0') + ':' + String(a % 60).padStart(2, '0');
+}
+
+function openRemoteModal() {
+  const codeEl = document.getElementById('remoteSyncCode');
+  if (codeEl) codeEl.textContent = syncCode || '';
+  document.getElementById('remoteModal').classList.add('open');
+  remoteSend('timer_ping', { id: deviceId }); // ask peers to announce now, not on the next beat
+  renderRemoteList();
+  clearInterval(remoteRenderTimer);
+  remoteRenderTimer = setInterval(renderRemoteList, 1000); // live countdowns
+}
+
+function closeRemoteModal() {
+  const m = document.getElementById('remoteModal');
+  if (m) m.classList.remove('open');
+  clearInterval(remoteRenderTimer);
+  remoteRenderTimer = null;
+}
+
+function renderRemoteList() {
+  const box = document.getElementById('remoteList');
+  const modal = document.getElementById('remoteModal');
+  if (!box || !modal || !modal.classList.contains('open')) return;
+  const now = Date.now();
+  Object.keys(remotePeers).forEach(id => {
+    if (now - remotePeers[id].seenAt > REMOTE_STALE_MS) delete remotePeers[id];
+  });
+  const ids = Object.keys(remotePeers);
+  if (!ids.length) {
+    box.innerHTML = '<div class="remote-empty">No other devices seen yet.<br>'
+      + 'Open the app on another device with the same sync code.</div>';
+    return;
+  }
+  box.innerHTML = ids.map(id => {
+    const p = remotePeers[id];
+    let rem = p.remaining;
+    if (p.running) {
+      // Extrapolate between heartbeats, clamped to the same floor the peer uses
+      // (focus runs into overtime down to -totalSec; breaks stop at 0).
+      const floor = p.mode === 'focus' ? -p.totalSec : 0;
+      rem = Math.max(floor, p.remaining - Math.round((now - p.seenAt) / 1000));
+    }
+    const state = p.running ? (rem < 0 ? 'Overtime' : 'Running') : 'Paused';
+    const modeLabel = MODES[p.mode].label;
+    return '<div class="remote-card' + (p.running ? ' running' : '') + '">'
+      + '<div class="remote-info">'
+      +   '<div class="remote-name">' + esc(p.name) + '</div>'
+      +   '<div class="remote-sub">' + esc(modeLabel) + (p.task ? ' · ' + esc(p.task) : '') + '</div>'
+      + '</div>'
+      + '<div class="remote-clock">'
+      +   '<div class="remote-time' + (rem < 0 ? ' over' : '') + '">' + fmtRemoteClock(rem) + '</div>'
+      +   '<div class="remote-state">' + state + '</div>'
+      + '</div>'
+      + '<div class="remote-btns">'
+      +   '<button class="btn-ctrl" title="' + (p.running ? 'Pause' : 'Start') + '" onclick="sendRemoteCmd(\'' + id + '\',\'' + (p.running ? 'pause' : 'start') + '\')">' + (p.running ? '⏸' : '▶') + '</button>'
+      +   '<button class="btn-ctrl" title="Reset" onclick="sendRemoteCmd(\'' + id + '\',\'reset\')">↺</button>'
+      +   '<button class="btn-ctrl" title="Skip" onclick="sendRemoteCmd(\'' + id + '\',\'skip\')">⏭</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+// Heartbeat: keep our card fresh on peers' Remote panels. Deliberately NOT
+// gated on document.hidden — the whole point is controlling a device you're
+// not looking at (its tab throttles this to ~1/min; REMOTE_STALE_MS covers it).
+setInterval(() => { if (syncCode) broadcastTimerState(); }, 10000);
 
 function loadAll() {
   try {
@@ -2568,6 +2821,7 @@ function setMode(m, el) {
   document.getElementById('modeLabel').textContent = cfg.label;
   document.body.classList.toggle('break', cfg.break);
   updateDisplay(); updateRing(); updateTopBar();
+  broadcastTimerState();
 }
 
 function toggleTimer() {
@@ -2593,6 +2847,7 @@ function startTimer() {
   playSound('start');
   if (window.Sanctuary) Sanctuary.onStart();
   if (typeof updateMobileBar === 'function') updateMobileBar();
+  broadcastTimerState();
 }
 
 function flushElapsed() {
@@ -2619,6 +2874,7 @@ function pauseTimer() {
   flushElapsed(); // credit any partial minutes when paused
   if (window.Sanctuary) Sanctuary.onPause();
   if (typeof updateMobileBar === 'function') updateMobileBar();
+  broadcastTimerState();
 }
 
 function tick() {
@@ -2696,6 +2952,7 @@ function resetTimer() {
   remaining = totalSec;
   elapsedSecs = 0;
   updateDisplay(); updateRing(); updateTopBar();
+  broadcastTimerState();
 }
 
 function skipSession() {
@@ -2704,6 +2961,7 @@ function skipSession() {
   remaining = 0;
   elapsedSecs = 0;
   updateDisplay(); updateRing(); updateTopBar();
+  broadcastTimerState();
 }
 
 function updateDisplay() {
@@ -6852,6 +7110,7 @@ setInterval(() => { if (!document.hidden) catchUpPull(false); }, 120000);
       syncCode = saved;
       const badge = document.getElementById('syncBadge');
       if (badge) { badge.textContent = '🔗 ' + syncCode; badge.classList.add('connected'); }
+      updateRemoteButton();
       await pullFromCloud();
       subscribeRealtime();
     }

@@ -171,6 +171,12 @@ For a richer, formatted snapshot (active + completed + stats), use **Save Report
 
 Open **Sync** (the badge at the top of the left panel) → enter the **same sync code** on each device. Tasks, categories, history, and stats sync in realtime. Generate a fresh code with **✨ New** on your first device, then enter that code on the others. Without a code the app is 100% local — no cloud, no account.
 
+### 📡 Remote control
+
+While sync is on, a **📡** button appears next to the timer controls. It lists every other device on your sync code with its live countdown, mode, and current task — and lets you **start / pause / reset / skip** the timer on any of them from where you sit. Started a session on the desktop and walked away with your phone? Pause it from the couch. The controlled device shows a small "📡 Paused from iPhone" toast so nothing happens silently.
+
+Commands are ephemeral (nothing is stored), only reach devices on the same sync code, and can only drive the timer — never touch tasks or history.
+
 ---
 
 ## 7. Keyboard shortcuts

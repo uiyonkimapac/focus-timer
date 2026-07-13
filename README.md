@@ -37,6 +37,7 @@ Drag peaks around to plan spatially. Stack them close — above, below, or besid
 - **📱 Install it** — Add to Home Screen on iOS/Android and it runs fullscreen like a native app.
 - **✈️ Offline-first** — everything (even the sounds) works with no connection. Your data lives on your device.
 - **🔄 Realtime sync (optional)** — enter one sync code on every device and tasks flow between them live.
+- **📡 Remote control** — with sync on, start, pause, or reset the timer on any of your devices from any other. Kick off a session on the desktop, pause it from your phone.
 - **💾 Own your data** — export a formatted HTML report of tasks, completions, and focus stats anytime.
 
 ![List View](docs/img/list-view.jpg)
