@@ -14,6 +14,7 @@
 <!-- PWA: installable, standalone, offline (sw.js) -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f1117">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -731,6 +732,19 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
   cursor: pointer; transition: border-color 0.2s;
 }
 .time-inp:focus { border-color: var(--accent); }
+/* macOS Safari draws <select> as the native aqua control unless the appearance
+   is stripped, ignoring the dark background/border above — bright system pills
+   in a parchment UI. Strip it on all three pickers (time, category, map ruler)
+   and draw our own chevron; padding-right reserves room for it. */
+select.time-inp, select.cat-inp, select.btn-small {
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23837a6c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  padding-right: 27px;
+}
+body.light select.time-inp, body.light select.cat-inp, body.light select.btn-small {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8170' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
 .btn-add {
   padding: 9px 16px; border-radius: var(--radius-sm);
   border: none; background: var(--accent); color: #fff;
@@ -948,7 +962,7 @@ body.light .map-peak-cap { fill: #fdfcf7; opacity: 0.95; }
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.7); z-index: 100;
   align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
 .modal-overlay.open { display: flex; }
 .modal {
