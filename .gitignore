@@ -20,6 +20,9 @@ docs/COMMERCIALIZATION-ROADMAP.md
 docs/RECOMMENDATIONS.md
 
 # Test tooling (dev-only; the app itself stays a single static file)
+# playwright.local.config.js = machine-local override (e.g. a pinned browser
+# executablePath in a sandbox) — never for the repo.
+playwright.local.config.js
 node_modules/
 test-results/
 playwright-report/
