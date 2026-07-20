@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus Timer — GLACIER concept mock</title>
+<style>
+  /* ============================================================
+     GLACIER — Kid A-inspired theme concept
+     Concept: LIVE FOR TODAY. DO IT FOR TODAY. SIMPLY GET THINGS DONE.
+     ============================================================ */
+  :root{
+    --sky:        #E9E6DE;   /* cold off-white, paper-like        */
+    --sky-low:    #D8D9D2;   /* horizon haze                      */
+    --ice-1:      #B9CDD6;   /* far range                         */
+    --ice-2:      #8FB0BF;   /* mid range                         */
+    --ice-3:      #5E7E8E;   /* near range                        */
+    --ink:        #17191B;   /* near-black                        */
+    --ink-soft:   #3C4145;
+    --red:        #C8102E;   /* the only warm thing in the world  */
+    --red-deep:   #8F0A20;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--sky);
+    color:var(--ink);
+    font-family:"Helvetica Neue","Arial",sans-serif;
+    overflow:hidden;
+    position:relative;
+  }
+
+  /* ---- film grain over everything ---- */
+  body::after{
+    content:"";
+    position:fixed; inset:0;
+    pointer-events:none;
+    opacity:.5;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index:50;
+  }
+
+  .stage{
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+
+  /* ---- top bar ---- */
+  .top{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:22px 26px 0;
+    letter-spacing:.14em;
+    z-index:10;
+  }
+  .top .date{
+    font-size:13px; font-weight:700; text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .top .badge{
+    font-size:11px; font-weight:800; text-transform:uppercase;
+    color:var(--sky);
+    background:var(--ink);
+    padding:5px 10px 4px;
+    letter-spacing:.22em;
+  }
+
+  /* ---- manifesto headline ---- */
+  .manifesto{
+    padding:34px 26px 0;
+    z-index:10;
+  }
+  .manifesto h1{
+    font-family:"Arial Narrow","Helvetica Neue Condensed","Roboto Condensed",Arial,sans-serif;
+    font-stretch:condensed;
+    font-weight:900;
+    font-size:clamp(40px,7.5vw,88px);
+    line-height:.92;
+    text-transform:uppercase;
+    letter-spacing:-.01em;
+    color:var(--ink);
+  }
+  .manifesto h1 .red{color:var(--red)}
+  .manifesto p{
+    margin-top:14px;
+    font-size:12px; font-weight:700;
+    letter-spacing:.3em; text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+
+  /* ---- timer block ---- */
+  .timer{
+    padding:30px 26px 0;
+    z-index:10;
+  }
+  .timer .task{
+    font-size:15px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.08em;
+    display:flex; align-items:center; gap:10px;
+  }
+  .timer .task .mit{
+    background:var(--red); color:#fff;
+    font-size:10px; letter-spacing:.2em;
+    padding:3px 7px 2px;
+  }
+  .timer .clock{
+    font-family:"Arial Narrow","Roboto Condensed",Arial,sans-serif;
+    font-weight:900;
+    font-size:clamp(72px,15vw,150px);
+    line-height:1;
+    letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;
+    margin-top:4px;
+  }
+  .timer .meta{
+    display:flex; gap:26px; margin-top:10px;
+    font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .timer .meta .finish b{color:var(--red)}
+
+  /* ---- mountain horizon (SVG) ---- */
+  .horizon{
+    margin-top:auto;
+    position:relative;
+    z-index:5;
+    line-height:0;
+  }
+  .horizon svg{width:100%; height:38vh; display:block}
+
+  /* faint sun — the day itself, sinking */
+  .sun{
+    position:absolute;
+    right:12%; top:-9vh;
+    width:11vh; height:11vh;
+    border-radius:50%;
+    background:radial-gradient(circle at 40% 35%, #fff 0%, #F4E9DC 55%, transparent 72%);
+    opacity:.9;
+    z-index:1;
+  }
+
+  /* ---- bottom glance strip ---- */
+  .glance{
+    position:relative; z-index:10;
+    display:grid; grid-template-columns:repeat(3,1fr);
+    background:var(--ink);
+    color:var(--sky);
+  }
+  .glance .cell{
+    padding:14px 10px 16px;
+    text-align:center;
+    border-right:1px solid rgba(233,230,222,.14);
+  }
+  .glance .cell:last-child{border-right:none}
+  .glance .num{
+    font-family:"Arial Narrow","Roboto Condensed",Arial,sans-serif;
+    font-weight:900; font-size:30px; line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .glance .lbl{
+    margin-top:5px;
+    font-size:10px; font-weight:700;
+    letter-spacing:.28em; text-transform:uppercase;
+    opacity:.65;
+  }
+  .glance .cell.alert .num{color:var(--red)}
+
+  /* subtle scratch lines across the sky */
+  .scratch{
+    position:absolute; inset:0; z-index:2; pointer-events:none; opacity:.28;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="top">
+    <div class="date">WED · JUL 8</div>
+    <div class="badge">TODAY ONLY</div>
+  </div>
+
+  <div class="manifesto">
+    <h1>DO IT<br>FOR <span class="red">TODAY.</span></h1>
+    <p>SIMPLY GET THINGS DONE</p>
+  </div>
+
+  <div class="timer">
+    <div class="task"><span class="mit">MIT</span> WRITE THE LAUNCH POST</div>
+    <div class="clock">23:14</div>
+    <div class="meta">
+      <span>FOCUS · SESSION 2/4</span>
+      <span class="finish">FINISH BY <b>6:40 PM</b></span>
+    </div>
+  </div>
+
+  <div class="horizon">
+    <div class="sun"></div>
+
+    <!-- scratch lines -->
+    <svg class="scratch" viewBox="0 0 1000 400" preserveAspectRatio="none">
+      <line x1="0" y1="82"  x2="1000" y2="70"  stroke="#17191B" stroke-width=".5"/>
+      <line x1="0" y1="205" x2="1000" y2="214" stroke="#17191B" stroke-width=".4"/>
+      <line x1="120" y1="0" x2="132" y2="400"  stroke="#17191B" stroke-width=".35"/>
+      <line x1="815" y1="0" x2="803" y2="400"  stroke="#17191B" stroke-width=".35"/>
+    </svg>
+
+    <svg viewBox="0 0 1000 380" preserveAspectRatio="none">
+      <defs>
+        <filter id="rough">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="3" seed="7" result="t"/>
+          <feDisplacementMap in="SourceGraphic" in2="t" scale="9"/>
+        </filter>
+        <filter id="paint">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="n"/>
+          <feColorMatrix in="n" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0" result="a"/>
+          <feComposite in="a" in2="SourceGraphic" operator="in" result="tex"/>
+          <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="tex"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- far range -->
+      <g filter="url(#rough)">
+        <polygon fill="#B9CDD6" points="0,380 0,240 60,190 110,235 190,140 260,220 330,170 410,240 470,180 540,250 620,150 700,230 760,190 840,250 910,180 1000,255 1000,380"/>
+      </g>
+
+      <!-- mid range -->
+      <g filter="url(#rough)">
+        <polygon fill="#8FB0BF" points="0,380 0,285 80,225 150,280 230,190 300,270 380,215 450,285 530,205 600,275 670,235 750,295 830,215 900,280 1000,230 1000,380"/>
+      </g>
+
+      <!-- THE red peak — today's MIT -->
+      <g filter="url(#paint)">
+        <polygon fill="#C8102E" points="395,380 455,155 470,190 482,168 540,380"/>
+        <polygon fill="#8F0A20" points="455,155 470,190 482,168 500,240 468,215 448,250"/>
+        <!-- snow cap -->
+        <polygon fill="#E9E6DE" points="449,178 455,155 470,190 462,186 458,196"/>
+      </g>
+
+      <!-- near range (dark) -->
+      <g filter="url(#rough)">
+        <polygon fill="#3E545F" points="0,380 0,330 70,280 140,335 220,265 290,340 370,300 430,355 520,310 610,360 690,295 780,350 860,305 930,355 1000,315 1000,380"/>
+      </g>
+      <g filter="url(#rough)">
+        <polygon fill="#22313A" points="0,380 0,352 90,320 180,362 280,325 360,368 470,335 570,372 680,330 790,368 890,338 1000,362 1000,380"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="glance">
+    <div class="cell"><div class="num">142</div><div class="lbl">Focused Min</div></div>
+    <div class="cell alert"><div class="num">3:20</div><div class="lbl">Remaining</div></div>
+    <div class="cell"><div class="num">7</div><div class="lbl">Done</div></div>
+  </div>
+
+</div>
+</body>
+</html>
