@@ -12,7 +12,7 @@ Earlier work (Mountain Board map, sync, Watch companion, routines) predates this
 ### Changed
 - **List view is one flat queue.** Tasks appear in the order you set, regardless of category, so any task can sit at the top. Category header rows are gone. The Not today and Completed sections are unchanged.
 - **Dragging moves a task only.** Dropping a task near another category's tasks no longer changes its category. Map view remains the only place where dragging a peak onto a range re-categorizes it.
-- **Switching lists is blocked while the timer or a Run is active**, with a short note asking you to pause first, so the task you are on is never lost.
+- **Switching, creating or deleting lists is blocked while the timer or a Run is active**, with a short note asking you to pause first, so the task you are on is never lost.
 - The Watch keeps showing whichever list is active on your other devices. No Watch update needed.
 
 ### Removed
