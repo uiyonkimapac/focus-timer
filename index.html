@@ -3622,7 +3622,7 @@ function renderTasks() {
   document.body.classList.remove('full-map'); // never hide the timer in List view
   const list = document.getElementById('taskList');
   if (tasks.length===0) {
-    list.innerHTML = `<div class="empty-msg"><div class="big">🧠</div>Add a task above or Dump Tasks to clear your head<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
+    list.innerHTML = `<div class="empty-msg">Add a task above or Dump Tasks to clear your head<br><span style="font-size:11px;color:var(--text3)">Click a task to focus on it</span></div>`;
     return;
   }
   // Split: visible (not done, not hidden-today) vs hidden-today vs done.
