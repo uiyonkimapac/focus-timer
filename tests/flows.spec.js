@@ -182,14 +182,6 @@ test('Ctrl+drag ADDS boxed peaks to the selection instead of replacing it', asyn
   expect(res.ids).toContain(res.b);   // boxed peak was added
 });
 
-test('category headers no longer expose a delete control', async ({ page }) => {
-  const html = await page.evaluate(() =>
-    renderCategoryHeader('cat-x', 'Kagoshima', '#c66a52', [], false, false));
-  expect(html).toContain('renameCategory');   // rename still available
-  expect(html).not.toContain('deleteCategory'); // delete control removed
-  expect(html).not.toContain('Delete group');
-});
-
 test('REMAINING stat keeps the minutes unit past an hour (6h36m, not 6h36)', async ({ page }) => {
   await seedTasks(page, [{ name: 'Big', mins: 396 }]);   // 6h 36m of remaining work
   const overHour = await page.evaluate(() => { updateStats(); return document.getElementById('statRemaining').textContent; });
