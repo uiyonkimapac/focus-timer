@@ -26,6 +26,11 @@ for the run.
   un-complete (the data-loss regression), recurring-task revival + history
   preservation, the recurrence cycle, "Not today" excluded from the map,
   the storage-full toast, and basic complete→history.
+- **`lists.spec.js`** — the flat queue and multiple lists: a category chip per
+  card, drag never re-categorizes, the "My tasks" upgrade migration,
+  create/rename/switch/delete with Undo, the five-list cap, switching refused
+  while the timer runs, and sync payloads that carry `lists` + `activeList`
+  without ever wiping parked lists.
 
 Add a test whenever you fix a bug or add logic — it's the cheapest insurance
 against silently breaking the single file as it grows.

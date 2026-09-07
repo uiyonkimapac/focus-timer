@@ -182,14 +182,6 @@ test('Ctrl+drag ADDS boxed peaks to the selection instead of replacing it', asyn
   expect(res.ids).toContain(res.b);   // boxed peak was added
 });
 
-test('category headers no longer expose a delete control', async ({ page }) => {
-  const html = await page.evaluate(() =>
-    renderCategoryHeader('cat-x', 'Kagoshima', '#c66a52', [], false, false));
-  expect(html).toContain('renameCategory');   // rename still available
-  expect(html).not.toContain('deleteCategory'); // delete control removed
-  expect(html).not.toContain('Delete group');
-});
-
 test('REMAINING stat keeps the minutes unit past an hour (6h36m, not 6h36)', async ({ page }) => {
   await seedTasks(page, [{ name: 'Big', mins: 396 }]);   // 6h 36m of remaining work
   const overHour = await page.evaluate(() => { updateStats(); return document.getElementById('statRemaining').textContent; });
@@ -485,8 +477,8 @@ test('map popover rename is never lost on teardown and never writes stale refs (
 test('Manage categories can delete stale/empty categories the list view cannot reach', async ({ page }) => {
   await page.evaluate(() => {
     categories.push(
-      { id: 'c_used',  name: 'Used',  color: '#5aa9e6', order: 0, collapsed: false },
-      { id: 'c_stale', name: 'Stale', color: '#e65a5a', order: 1, collapsed: false },
+      { id: 'c_used',  name: 'Used',  color: '#5aa9e6', order: 0 },
+      { id: 'c_stale', name: 'Stale', color: '#e65a5a', order: 1 },
     );
     renderTasks();
   });
