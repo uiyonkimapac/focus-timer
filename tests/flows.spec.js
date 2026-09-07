@@ -477,8 +477,8 @@ test('map popover rename is never lost on teardown and never writes stale refs (
 test('Manage categories can delete stale/empty categories the list view cannot reach', async ({ page }) => {
   await page.evaluate(() => {
     categories.push(
-      { id: 'c_used',  name: 'Used',  color: '#5aa9e6', order: 0, collapsed: false },
-      { id: 'c_stale', name: 'Stale', color: '#e65a5a', order: 1, collapsed: false },
+      { id: 'c_used',  name: 'Used',  color: '#5aa9e6', order: 0 },
+      { id: 'c_stale', name: 'Stale', color: '#e65a5a', order: 1 },
     );
     renderTasks();
   });

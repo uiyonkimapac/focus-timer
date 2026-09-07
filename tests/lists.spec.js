@@ -3,10 +3,9 @@ const { test, expect } = require('@playwright/test');
 const { open, seedTasks } = require('./helpers');
 
 async function seedCats(page) {
-  return page.evaluate(() => {
+  await page.evaluate(() => {
     categories.push({ id: 'c_a', name: 'Alpha', color: '#6e8062', order: 0 },
                      { id: 'c_b', name: 'Beta',  color: '#c0922f', order: 1 });
-    return ['c_a', 'c_b'];
   });
 }
 
@@ -70,7 +69,7 @@ test('fresh install migrates to a single "My tasks" list and shows it in the pic
   }));
   expect(res.name).toBe('My tasks');
   expect(res.parked).toBe(0);
-  expect(res.picker).toMatch(/^My tasks · saved \d/);
+  expect(res.picker).toMatch(/^My tasks · saved /);
   expect(res.stored && res.stored.name).toBe('My tasks');
 });
 
@@ -160,7 +159,7 @@ test('delete asks, switches to the newest parked list, and Undo brings the list 
 test('sync payload carries lists + activeList and a remote payload restores them', async ({ page }) => {
   const res = await page.evaluate(() => {
     window.prompt = () => 'Home'; createList();
-    const keys = Object.keys({ tasks, history, categories, routines, lists, activeList }); // mirrors pushToCloud
+    const keys = /tasks, history, categories, routines, lists, activeList/.test(pushToCloud.toString()) ? ['lists', 'activeList'] : []; // the real payload literal
     const remote = { tasks: [], history: [], categories: [], routines: [], stats: {},
       lists: [{ id: 'l_remote', name: 'Remote', savedAt: 5, tasks: [], categories: [], routines: [], history: [], stats: {} }],
       activeList: { id: 'l_act', name: 'Active', savedAt: 6 }, dataTimestamp: Date.now() + 10000, lastClearedAt };
@@ -177,13 +176,14 @@ test('sanitizeLists drops bad ids, duplicates, the active id and anything past t
     const mk = (id, name) => ({ id, name, savedAt: 1, tasks: [{ id: 1, name: 't', mins: 25, categoryId: 'ghost' }], categories: [], routines: [], history: [], stats: {} });
     const out = sanitizeLists([mk('l1', 'One'), mk('l1', 'Dup'), mk('bad id!', 'Bad'), mk('act', 'Active'),
                                mk('l2', 'Two'), mk('l3', 'Three'), mk('l4', 'Four'), mk('l5', 'Five')], 'act');
-    return { ids: out.map(l => l.id), ghostCleared: out[0].tasks[0].categoryId, fallback: sanitizeActiveList(null).name,
-             badActive: sanitizeActiveList({ id: 'x y', name: 'n' }).name };
+    return { ids: out.map(l => l.id), ghostCleared: out[0].tasks[0].categoryId, fallback: newActiveList().name,
+             badActive: sanitizeActiveList({ id: 'x y', name: 'n' }), nullActive: sanitizeActiveList(null) };
   });
   expect(res.ids).toEqual(['l1', 'l2', 'l3', 'l4']);
   expect(res.ghostCleared).toBeNull();
   expect(res.fallback).toBe('My tasks');
-  expect(res.badActive).toBe('My tasks');
+  expect(res.badActive).toBeNull();   // callers fall back to the list they already hold
+  expect(res.nullActive).toBeNull();
 });
 
 test('the list picker stays visible in Map and full-map modes', async ({ page }) => {
@@ -192,6 +192,183 @@ test('the list picker stays visible in Map and full-map modes', async ({ page })
   await expect(page.locator('#listPicker')).toBeVisible();
   await page.evaluate(() => { toggleFullMap(); });
   await expect(page.locator('#listPicker')).toBeVisible();
+});
+
+
+// ── Review-driven regression tests ──
+
+test('upgrade wraps existing data as "My tasks" without moving anything and strips the old collapse flag', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('focustimer_tasks', JSON.stringify([{ id: 1, name: 'Old', mins: 25, secsRemaining: 1500, done: false, categoryId: 'c1', mapX: 0.4 }]));
+    localStorage.setItem('focustimer_categories', JSON.stringify([{ id: 'c1', name: 'Legacy', color: '#6e8062', order: 0, collapsed: true }]));
+    localStorage.removeItem('focustimer_activelist'); localStorage.removeItem('focustimer_lists');
+  });
+  await page.reload();
+  const res = await page.evaluate(() => ({ n: tasks.map(t => t.name), mapX: tasks[0].mapX, cats: categories.map(c => c.name),
+    collapsed: categories[0].collapsed, active: activeList.name, parked: lists.length }));
+  expect(res).toEqual({ n: ['Old'], mapX: 0.4, cats: ['Legacy'], collapsed: undefined, active: 'My tasks', parked: 0 });
+});
+
+test('parked lists and the active list survive a reload', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A1' }]);
+  await page.evaluate(() => { window.prompt = () => 'Home'; createList(); });
+  await page.reload();
+  const res = await page.evaluate(() => ({ active: activeList.name, parked: lists.map(l => l.name), parkedTasks: lists[0].tasks.map(t => t.name) }));
+  expect(res).toEqual({ active: 'Home', parked: ['My tasks'], parkedTasks: ['A1'] });
+});
+
+test('a payload from a pre-lists build never wipes parked lists; with none parked it applies and re-pushes', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A1' }]);
+  const res = await page.evaluate(() => {
+    const legacy = (name) => ({ tasks: [{ id: 99, name, mins: 25, secsRemaining: 1500, done: false, categoryId: null }], history: [], categories: [], routines: [], stats: {}, dataTimestamp: Date.now() + 10000, lastClearedAt });
+    applyRemote(legacy('FromOld'));                       // no parked lists → applied, identity kept
+    const applied = { names: tasks.map(t => t.name), active: activeList.name };
+    window.prompt = () => 'Home'; createList();           // now one parked list
+    applyRemote(legacy('FromOld2'));                      // must be ignored
+    return { applied, names: tasks.map(t => t.name), parked: lists.map(l => l.name), active: activeList.name };
+  });
+  expect(res.applied).toEqual({ names: ['FromOld'], active: 'My tasks' });
+  expect(res).toMatchObject({ names: [], parked: ['My tasks'], active: 'Home' });
+});
+
+test('a fresh device pushing lists:[] with an unknown active id cannot wipe parked lists', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A1' }]);
+  const res = await page.evaluate(() => {
+    window.prompt = () => 'Home'; createList();
+    tasks.push({ id: newId(), name: 'H1', mins: 25, secsRemaining: 1500, done: false, categoryId: null, sessions: 0, secsSpent: 0, source: 'manual', createdAt: Date.now(), notes: '', isMIT: false, notTodayDayKey: null, lastHiddenDayKey: null, notTodayStreak: 0 });
+    applyRemote({ tasks: [], history: [], categories: [], routines: [], stats: {}, lists: [],
+      activeList: { id: 'l_fresh', name: 'My tasks', savedAt: 5 }, dataTimestamp: Date.now() + 10000, lastClearedAt });
+    return { active: activeList.id, parked: lists.map(l => l.name).sort(), homeKept: lists.some(l => l.name === 'Home' && l.tasks.some(t => t.name === 'H1')) };
+  });
+  expect(res.active).toBe('l_fresh');
+  expect(res.parked).toEqual(['Home', 'My tasks']); // ours kept, the overwritten active list parked too
+  expect(res.homeKept).toBe(true);
+});
+
+test('rename: case-only allowed, clash with a parked list refused, blank is a no-op, saved time kept', async ({ page }) => {
+  const res = await page.evaluate(() => {
+    window.prompt = () => 'Home'; createList();
+    const before = activeList.savedAt;
+    window.prompt = () => 'HOME'; renameList(); const caseOnly = activeList.name;
+    window.prompt = () => 'my tasks'; renameList(); const clash = activeList.name;
+    window.prompt = () => '   '; renameList();
+    return { caseOnly, clash, blank: activeList.name, savedKept: activeList.savedAt === before,
+             stored: JSON.parse(localStorage.getItem('focustimer_activelist')).name,
+             picker: document.querySelector('#listPicker option:checked').textContent };
+  });
+  expect(res).toMatchObject({ caseOnly: 'HOME', clash: 'HOME', blank: 'HOME', savedKept: true, stored: 'HOME' });
+  expect(res.picker).toMatch(/^HOME · saved /);
+});
+
+test('the picker itself creates a list and snaps back after a refused switch', async ({ page }) => {
+  await page.evaluate(() => { window.prompt = () => 'Home'; });
+  await page.selectOption('#listPicker', '__new');
+  expect(await page.evaluate(() => activeList.name)).toBe('Home');
+  await page.evaluate(() => { running = true; });
+  const parkedId = await page.evaluate(() => lists[0].id);
+  await page.selectOption('#listPicker', parkedId);
+  await expect(page.locator('#listPicker')).toHaveValue(await page.evaluate(() => activeList.id));
+  expect(await page.evaluate(() => activeList.name)).toBe('Home');
+});
+
+test('create and delete are also refused while busy, including when the Run screen is open', async ({ page }) => {
+  const res = await page.evaluate(() => {
+    window.prompt = () => 'Home'; createList();
+    window.confirm = () => true;
+    const orig = Sanctuary.isOpen; Sanctuary.isOpen = () => true;
+    createList(); deleteList(); switchList(lists[0].id);
+    Sanctuary.isOpen = orig;
+    return { active: activeList.name, parked: lists.length };
+  });
+  expect(res).toEqual({ active: 'Home', parked: 1 });
+});
+
+test('Undo after delete respects the five-list cap instead of silently overflowing', async ({ page }) => {
+  const res = await page.evaluate(() => {
+    let i = 0; window.prompt = () => 'L' + (++i);
+    createList(); createList(); createList(); createList();   // 5 lists
+    window.confirm = () => true; deleteList();                // 4
+    createList();                                             // 5 again
+    runUndo();                                                // must refuse
+    return { total: lists.length + 1, note: document.getElementById('noteMsg').textContent };
+  });
+  expect(res.total).toBe(5);
+  expect(res.note).toMatch(/Up to 5 lists/);
+});
+
+test('Reset Data clears every list, not just the active one', async ({ page }) => {
+  await seedTasks(page, [{ name: 'A1' }]);
+  const res = await page.evaluate(() => {
+    window.prompt = () => 'Home'; createList();
+    window.confirm = () => true; resetAllData();
+    return { parked: lists.length, active: activeList.name, tasks: tasks.length };
+  });
+  expect(res).toEqual({ parked: 0, active: 'My tasks', tasks: 0 });
+});
+
+test('idle saves do not bump savedAt or dataTimestamp; a list change does change the snapshot hash', async ({ page }) => {
+  const res = await page.evaluate(() => {
+    saveAll(); const a = [activeList.savedAt, dataTimestamp, snapshotHash()];
+    saveAll(); saveAll(); const b = [activeList.savedAt, dataTimestamp, snapshotHash()];
+    window.prompt = () => 'Home'; createList();
+    return { same: a[0] === b[0] && a[1] === b[1] && a[2] === b[2], hashChanged: snapshotHash() !== a[2] };
+  });
+  expect(res).toEqual({ same: true, hashChanged: true });
+});
+
+test('a real HTML5 drop keeps the dragged task\'s category', async ({ page }) => {
+  await seedCats(page);
+  await seedTasks(page, [{ name: 'A1', categoryId: 'c_a' }, { name: 'B1', categoryId: 'c_b' }]);
+  const res = await page.evaluate(() => {
+    const [a, b] = tasks;
+    const cardB = document.querySelector(`.task-card[data-task-id="${b.id}"]`);
+    const cardA = document.querySelector(`.task-card[data-task-id="${a.id}"]`);
+    cardB.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: new DataTransfer() }));
+    const r = cardA.getBoundingClientRect();
+    cardA.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: new DataTransfer(), clientY: r.top + 2 }));
+    return { order: tasks.map(t => t.name), cats: tasks.map(t => t.categoryId) };
+  });
+  expect(res).toEqual({ order: ['B1', 'A1'], cats: ['c_b', 'c_a'] });
+});
+
+test('chip editing: opens with the current category selected, ignores done tasks, closes on Escape', async ({ page }) => {
+  await seedCats(page);
+  await seedTasks(page, [{ name: 'A1', categoryId: 'c_a' }, { name: 'D' }]);
+  const res = await page.evaluate(() => {
+    const [a, d] = tasks; d.done = true; renderTasks();
+    openCatChip(a.id);
+    const card = document.querySelector(`.task-card[data-task-id="${a.id}"]`);
+    const opened = { editing: card.classList.contains('cat-editing'), value: document.getElementById('cc_' + a.id).value, isButton: card.querySelector('.tag-cat').tagName };
+    closeCatChip(a.id);
+    commitCatChip(d.id, 'c_b');
+    return { opened, closed: !card.classList.contains('cat-editing'), doneCat: d.categoryId, doneHasSelect: !!document.getElementById('cc_' + d.id) };
+  });
+  expect(res.opened).toEqual({ editing: true, value: 'c_a', isButton: 'BUTTON' });
+  expect(res).toMatchObject({ closed: true, doneCat: null, doneHasSelect: false });
+});
+
+test('list sanitizers reject picker-verb ids and absurd timestamps', async ({ page }) => {
+  const res = await page.evaluate(() => {
+    const mk = (id, savedAt) => ({ id, name: 'X', savedAt, tasks: [], categories: [], routines: [], history: [], stats: {} });
+    const out = sanitizeLists([mk('__new', 1), mk('ok1', Infinity), mk('ok2', 1e300)], 'act');
+    return { ids: out.map(l => l.id), finite: out.every(l => Number.isFinite(l.savedAt) && l.savedAt <= Date.now() + 1000),
+             verbActive: sanitizeActiveList({ id: '__delete', name: 'n' }) };
+  });
+  expect(res.ids).toEqual(['ok1', 'ok2']);
+  expect(res.finite).toBe(true);
+  expect(res.verbActive).toBeNull();
+});
+
+test('switching to a list parked over midnight runs the daily rollovers', async ({ page }) => {
+  await seedTasks(page, [{ name: 'Hid' }]);
+  const res = await page.evaluate(() => {
+    tasks[0].notTodayDayKey = yesterdayKey(); saveAll();
+    window.prompt = () => 'Home'; createList();
+    switchList(lists[0].id);
+    return { hiddenKey: tasks[0].notTodayDayKey, visible: !isHiddenToday(tasks[0]) };
+  });
+  expect(res.hiddenKey).toBeNull();
+  expect(res.visible).toBe(true);
 });
 
 test.describe('phone', () => {

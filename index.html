@@ -1189,21 +1189,6 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   font-size: 11px; color: var(--text3);
   transition: transform 0.15s;
 }
-.cat-dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--cat-color, currentColor) 18%, transparent),
-    0 0 6px color-mix(in srgb, var(--cat-color, currentColor) 35%, transparent);
-  cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
-}
-.cat-dot:hover {
-  transform: scale(1.15);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--cat-color, currentColor) 26%, transparent),
-    0 0 10px color-mix(in srgb, var(--cat-color, currentColor) 45%, transparent);
-}
 .cat-name {
   font-weight: 600;
   color: var(--text);
@@ -1216,15 +1201,6 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   font-size: 11px;
   margin-left: 4px;
 }
-.cat-actions {
-  margin-left: auto;
-  display: flex; gap: 2px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.cat-header:hover .cat-actions { opacity: 1; }
-.cat-header .cat-actions .btn-edit,
-.cat-header .cat-actions .btn-del { opacity: 1; }
 
 /* Color stripe on cards whose task has a category — but selected/done win */
 .task-card.has-cat:not(.selected):not(.done)::before { background: var(--cat-color); }
@@ -1378,7 +1354,6 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
   .cat-header { padding: 5px 8px 5px 4px; }
   .cat-name { font-size: 12px; }
   .cat-meta { font-size: 10px; }
-  .cat-actions { opacity: 1; }
 
   .quick-times { gap: 4px; }
   .qt-btn { padding: 5px 10px; font-size: 11px; }
@@ -1473,7 +1448,7 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
    doesn't auto-zoom the viewport on focus. */
 @media (pointer: coarse) {
   /* Hover-gated controls must simply be visible — there is no hover. */
-  .btn-edit, .btn-del, .cat-actions { opacity: 1; }
+  .btn-edit, .btn-del { opacity: 1; }
   .btn-mit { opacity: 0.7; }
   .btn-not-today { opacity: 0.55; }
   .btn-recur { opacity: 0.55; }
@@ -1482,12 +1457,14 @@ body.break .top-progress-fill { background: var(--blue); box-shadow: 0 0 8px var
      visual: generous vertically (cards have head-room), tight horizontally
      (the .task-right cluster packs buttons side by side). */
   .btn-edit, .btn-del, .btn-mit, .btn-not-today, .btn-recur, .btn-start-task,
-  .check-wrap, .time-badge, .cat-dot, .drag-handle { position: relative; }
+  .check-wrap, .time-badge, .drag-handle, .tag-cat { position: relative; }
   .btn-edit::after, .btn-del::after, .btn-mit::after, .btn-not-today::after, .btn-recur::after,
   .btn-start-task::after, .check-wrap::after, .time-badge::after,
-  .cat-dot::after, .drag-handle::after {
+  .drag-handle::after, .tag-cat::after {
     content: ''; position: absolute; inset: -10px -3px;
   }
+  .tag-cat.empty { opacity: 1; } /* no hover on touch — the only way to set a category must be visible */
+  .cat-chip-select, #listPicker { font-size: 16px; } /* iOS auto-zooms inputs under 16px */
 
   /* Free-standing controls can simply be taller. */
   .qt-btn { padding: 9px 14px; font-size: 12px; }
@@ -1624,10 +1601,11 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
    Click → swaps to the inline select (.cat-editing on the card). */
 .tag-cat {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 500; letter-spacing: 0.2px;
+  font-size: 10px; font-weight: 500; letter-spacing: 0.2px; font-family: inherit;
   color: var(--cat-color); cursor: pointer; padding: 1px 6px 1px 0;
-  border-radius: 999px; transition: background 0.15s;
+  border: 0; background: transparent; border-radius: 999px; transition: background 0.15s;
 }
+.tag-cat:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tag-cat::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cat-color); flex: none; }
 .tag-cat.empty { color: var(--text3); opacity: 0.55; }
 .tag-cat.empty::before { background: transparent; border: 1px dashed var(--text3); }
@@ -1638,6 +1616,7 @@ body.light .modal-overlay { background: rgba(0,0,0,0.45); }
 .task-card.cat-editing .cat-chip-select { display: inline-block; }
 /* List picker: the active list's name is always visible in the panel header. */
 #listPicker { max-width: 230px; color: var(--text); font-weight: 500; text-overflow: ellipsis; }
+#noteToast { bottom: 76px; } /* own slot — must never cover the Undo button */
 body.map-mode #listPicker { max-width: 150px; } /* map toolbar carries 3 extra controls */
 .tag-recur .ico-repeat { width: 11px; height: 11px; }
 .streak-warn {
@@ -2399,6 +2378,29 @@ function applyRemote(d) {
     if (remoteDataTs > 0 && remoteDataTs <= dataTimestamp) return;
   }
 
+  // ── Lists policy (decided BEFORE tasks/etc. are replaced, so we can still park
+  // the list about to be overwritten). Parked lists are never wiped by a payload
+  // that doesn't know about them:
+  //  • pre-lists build (neither key): apply only if we have no parked lists; else
+  //    ignore the payload and re-push ours so the cloud row learns the lists.
+  //  • fresh device (lists:[] + an activeList id we've never seen): keep our
+  //    parked lists, park our current active, adopt theirs, re-push.
+  const remoteKnowsLists = d.lists !== undefined || d.activeList !== undefined;
+  let nextActive = activeList, nextLists = lists, repush = false;
+  if (!remoteKnowsLists) {
+    if (lists.length) { console.warn('sync: ignoring payload from a pre-lists build while parked lists exist'); schedulePush(); return; }
+    repush = true;
+  } else {
+    nextActive = sanitizeActiveList(d.activeList) || activeList;
+    const incoming = sanitizeLists(d.lists, nextActive.id);
+    const knownId = nextActive.id === activeList.id || lists.some(l => l.id === nextActive.id);
+    if (!incoming.length && lists.length && !knownId) {
+      console.warn('sync: remote payload has no lists — keeping local parked lists');
+      nextLists = lists.slice();
+      if (nextLists.length + 1 < MAX_LISTS) nextLists.push(snapshotActiveList());
+      repush = true;
+    } else nextLists = incoming;
+  }
   syncSuppress = true;
   try {
     if (Array.isArray(d.tasks))      tasks      = sanitizeTasks(d.tasks);
@@ -2406,12 +2408,7 @@ function applyRemote(d) {
     if (Array.isArray(d.categories)) categories = sanitizeCategories(d.categories);
     if (Array.isArray(d.routines))   routines   = sanitizeRoutines(d.routines);
     if (d.stats) { sessionsDone = d.stats.sessionsDone || 0; minsFocused = d.stats.minsFocused || 0; minsFocusedToday = d.stats.minsFocusedToday || 0; focusedDay = d.stats.focusedDay || ''; }
-    // Lists: an older device's payload has neither key — keep ours rather than
-    // wiping parked lists because a pre-lists build pushed.
-    if (d.activeList !== undefined || d.lists !== undefined) {
-      activeList = sanitizeActiveList(d.activeList) || activeList || sanitizeActiveList(null);
-      lists = sanitizeLists(d.lists, activeList.id);
-    }
+    activeList = nextActive; lists = nextLists;
     // Re-parent any task whose categoryId points to a category that isn't in the
     // synced set (deleted, or a forged id that sanitizeTasks nulled) → Uncategorized.
     const validCatIds = new Set(categories.map(c => c.id));
@@ -2439,6 +2436,7 @@ function applyRemote(d) {
   } finally {
     syncSuppress = false;
   }
+  if (repush) schedulePush(); // the cloud row lacked our lists/activeList — teach it
 }
 
 function subscribeRealtime() {
@@ -2524,8 +2522,9 @@ function loadAll() {
     if (h) history = JSON.parse(h);
     if (c) categories = JSON.parse(c);
     if (r) routines = JSON.parse(r);
-    if (l) lists = JSON.parse(l);
-    if (al) activeList = JSON.parse(al);
+    // Own guards: a corrupt lists blob must not abort the stats/version-state reads below.
+    try { if (l) lists = JSON.parse(l); } catch(e) { lists = []; }
+    try { if (al) activeList = JSON.parse(al); } catch(e) { activeList = null; }
     if (s) { const p = JSON.parse(s); sessionsDone = p.sessionsDone||0; minsFocused = p.minsFocused||0; minsFocusedToday = p.minsFocusedToday||0; focusedDay = p.focusedDay||''; }
     // restore version state — survives reloads so a clear stays sticky
     dataTimestamp = parseInt(localStorage.getItem(STORAGE_DATATS) || '0', 10) || 0;
@@ -2555,7 +2554,7 @@ function loadAll() {
 
   // ── Lists: migration = first load without an active list wraps the existing
   // data as "My tasks". Nothing moves; parked lists are sanitized like the live one. ──
-  activeList = sanitizeActiveList(activeList) || sanitizeActiveList(null);
+  activeList = sanitizeActiveList(activeList) || newActiveList();
   lists = sanitizeLists(lists, activeList.id);
 
   // ── Sanitize routines (same guard for local load and sync ingestion) ──
@@ -3172,7 +3171,6 @@ function addCategory(name) {
     name: n,
     color: CAT_COLORS[categories.length % CAT_COLORS.length],
     order: categories.length,
-    collapsed: false,
   };
   categories.push(cat);
   saveAll();
@@ -3319,7 +3317,6 @@ function confirmCategoryModal() {
       name,
       color: catModalSelectedColor,
       order: categories.length,
-      collapsed: false,
     };
     categories.push(cat);
   }
@@ -3329,46 +3326,6 @@ function confirmCategoryModal() {
   const picker = document.getElementById('taskCategory');
   if (picker) picker.value = cat.id;
   closeCategoryModal();
-}
-
-function renameCategory(id) {
-  const cat = categories.find(c => c.id === id);
-  if (!cat) return;
-  const header = document.querySelector(`.cat-header[data-cat-id="${id}"]`);
-  if (!header) return;
-  const nameEl = header.querySelector('.cat-name');
-  if (!nameEl) return;
-  if (header.querySelector('.task-name-edit')) return;
-  const oldName = cat.name;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'task-name-edit';
-  input.value = oldName;
-  input.maxLength = 60;
-  input.setAttribute('aria-label', 'Rename category');
-  input.addEventListener('click', e => e.stopPropagation());
-  input.addEventListener('mousedown', e => e.stopPropagation());
-  nameEl.replaceWith(input);
-  input.focus();
-  input.select();
-  let settled = false;
-  const finish = (save) => {
-    if (settled) return;
-    settled = true;
-    if (save) {
-      const v = input.value.trim();
-      if (v && v !== oldName) {
-        cat.name = v;
-        saveAll();
-      }
-    }
-    renderTasks();
-  };
-  input.addEventListener('blur', () => finish(true));
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    else if (e.key === 'Escape') { e.preventDefault(); settled = true; renderTasks(); }
-  });
 }
 
 function deleteCategory(id) {
@@ -3466,8 +3423,8 @@ function renderTaskCard(t) {
   // (replaces the old "drop on a group header"). Done cards: label only.
   const catChip = t.done
     ? (cat ? `<span class="tag-cat" style="--cat-color:${cat.color}">${esc(cat.name)}</span>` : '')
-    : `<span class="tag-cat${cat ? '' : ' empty'}" style="--cat-color:${cat ? cat.color : 'var(--text3)'}" onclick="event.stopPropagation();openCatChip(${t.id})" title="Change category">${cat ? esc(cat.name) : '+ category'}</span>`
-      + `<select class="cat-chip-select" id="cc_${t.id}" onclick="event.stopPropagation()" onchange="commitCatChip(${t.id}, this.value)" onblur="closeCatChip(${t.id})" onkeydown="if(event.key==='Escape'){event.preventDefault();closeCatChip(${t.id});}">${categoryOptions(t.categoryId)}</select>`;
+    : `<button type="button" class="tag-cat${cat ? '' : ' empty'}" style="--cat-color:${cat ? cat.color : 'var(--text3)'}" onclick="event.stopPropagation();openCatChip(${t.id})" title="Change category">${cat ? esc(cat.name) : '+ category'}</button>`
+      + `<select class="cat-chip-select" id="cc_${t.id}" onclick="event.stopPropagation()" onchange="commitCatChip(${t.id}, this.value)" onblur="closeCatChip(${t.id})" onkeydown="if(event.key==='Escape'){event.preventDefault();closeCatChip(${t.id});}">${catOptsHtml || (catOptsHtml = categoryOptions())}</select>`;
   return `
   <div class="task-card${catClass}${mitClass} ${isAct?'selected':''} ${t.done?'done':''}"
        data-task-id="${t.id}"
@@ -3514,7 +3471,8 @@ function renderListPicker() {
   if (lists.length + 1 < MAX_LISTS) html += opt('__new', '＋ New list…');
   html += opt('__rename', '✎ Rename list…');
   if (lists.length) html += opt('__delete', '✕ Delete list…');
-  p.innerHTML = html;
+  if (document.activeElement === p) return; // never rebuild a dropdown the user has open (realtime pull, 60s tick)
+  if (p.innerHTML !== html) p.innerHTML = html;
 }
 function onListPickerChange(v) {
   if (v === '__new') createList();
@@ -3537,6 +3495,7 @@ function loadListState(l) {
   tasks = l.tasks; categories = l.categories; routines = l.routines; history = l.history;
   sessionsDone = l.stats.sessionsDone; minsFocused = l.stats.minsFocused;
   minsFocusedToday = l.stats.minsFocusedToday; focusedDay = l.stats.focusedDay;
+  clearExpiredNotToday(); reviveRecurringTasks(); // parked over midnight? run the day rollovers now
   const first = tasks.find(t => !t.done);
   setActive(first ? first.id : null, false);
   renderTasks(); renderHistory(); updateStats(); renderDots(); saveAll();
@@ -3567,8 +3526,12 @@ function createList() {
 function renameList() {
   const name = askListName(activeList.name);
   if (!name) return;
+  const keep = activeList.savedAt;
   activeList.name = name;
-  saveAll(); renderListPicker();
+  saveAll();
+  activeList.savedAt = keep; // a rename is not a content change — keep the saved time
+  try { localStorage.setItem(STORAGE_ACTIVELIST, JSON.stringify(activeList)); } catch(e) {}
+  renderListPicker();
 }
 function deleteList() {
   if (!lists.length || listBusy()) return;
@@ -3579,7 +3542,11 @@ function deleteList() {
   const next = lists.slice().sort((a, b) => b.savedAt - a.savedAt)[0];
   lists = lists.filter(l => l.id !== next.id);
   loadListState(next);
-  showUndo(`List "${gone.name}" deleted`, () => { lists.push(gone); saveAll(); renderListPicker(); });
+  showUndo(`List "${gone.name}" deleted`, () => {
+    if (lists.length + 1 >= MAX_LISTS) { showNote(`Up to ${MAX_LISTS} lists — can't restore "${gone.name}"`); return; }
+    if (gone.id === activeList.id || lists.some(l => l.id === gone.id)) gone.id = newListId(); // id reused meanwhile (sync race)
+    lists.push(gone); saveAll(); renderListPicker();
+  });
 }
 // Small non-blocking note (same visual as the undo toast, no button).
 let noteTimer = null;
@@ -3591,6 +3558,7 @@ function showNote(msg) {
 }
 
 function renderTasks() {
+  catOptsHtml = '';
   renderCategoryPicker();
   renderListPicker();
   renderMeta();
@@ -5119,15 +5087,19 @@ function toggleTE(id) {
 function closeTE(id) { const el=document.getElementById('te_'+id); if(el) el.classList.remove('open'); }
 
 // ── CATEGORY CHIP (inline category change on a card) ──
-function categoryOptions(selectedId) {
+// Built once per renderTasks() (cache reset there) — every active card embeds the same list.
+let catOptsHtml = '';
+function categoryOptions() {
   const sorted = categories.slice().sort((a, b) => a.order - b.order);
-  return `<option value=""${selectedId ? '' : ' selected'}>No category</option>`
-    + sorted.map(c => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  return '<option value="">No category</option>'
+    + sorted.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
 }
 function openCatChip(id) {
   const card = document.querySelector(`#taskList .task-card[data-task-id="${id}"]`);
   const sel = document.getElementById('cc_' + id);
-  if (!card || !sel) return;
+  const t = tasks.find(x => x.id === id);
+  if (!card || !sel || !t) return;
+  sel.value = t.categoryId || '';
   card.classList.add('cat-editing');
   sel.focus();
 }
@@ -5549,9 +5521,10 @@ function resetAllData() {
   const syncMsg = syncCode
     ? '\n\nSync is on — this also clears any other device on code "' + syncCode + '".'
     : '';
-  if (!confirm('This will clear ALL tasks and history from this browser.' + syncMsg +
+  if (!confirm('This will clear ALL tasks and history from this browser — every list, not just the current one.' + syncMsg +
     '\n\nMake sure to Save Report first if you want to keep your data.\n\nContinue?')) return;
   tasks = []; history = []; categories = []; routines = [];
+  lists = []; activeList = newActiveList();
   sessionsDone = 0; minsFocused = 0; minsFocusedToday = 0; focusedDay = ''; activeId = null;
   remaining = 25*60; totalSec = 25*60; mode = 'focus';
   clearInterval(ticker); running = false;
@@ -5684,8 +5657,8 @@ function safeColor(c, fallback) {
 // Validate an id before it reaches an HTML attribute or an onclick JS-string
 // context. Category ids are minted as `c_<ts>_<rand>` (and seed data uses short
 // tokens like `c1`), so a legitimate id only ever contains [A-Za-z0-9_-]. Anything
-// else is corrupt or a sync payload trying to break out of data-cat-id="${id}" /
-// toggleCategoryCollapsed('${id}') / data-cat-id="${t.categoryId}". Returns the id
+// else is corrupt or a sync payload trying to break out of <option value="${c.id}"> /
+// openCategoryModal('${id}') / data-cat-id="${t.categoryId}" (map peaks). Returns the id
 // when safe, otherwise null. This is the id counterpart to safeColor().
 function safeId(x) {
   return (typeof x === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x)) ? x : null;
@@ -5792,24 +5765,31 @@ function sanitizeRoutines(arr) {
 // the same shape as the live state, so it reuses the same guards. Names are
 // rendered (escaped) into <option> text; ids go into option values (safeId).
 function newListId() { return 'l_' + Date.now() + '_' + Math.floor(Math.random() * 1e6); }
+function newActiveList() { return { id: newListId(), name: 'My tasks', savedAt: Date.now() }; }
 function cleanListName(x) { return (typeof x === 'string' ? x : '').replace(/\s+/g, ' ').trim().slice(0, 40); }
+// List ids additionally may not start with "__" — the picker uses __new/__rename/__delete as verbs.
+function safeListId(x) { const id = safeId(x); return (id && !id.startsWith('__')) ? id : null; }
+// savedAt must be a real past-ish timestamp: Infinity/1e300 would give NaN dates and a NaN sort.
+function saneTs(x) { const n = Number(x); return (Number.isFinite(n) && n > 0 && n < Date.now() + 864e5) ? n : Date.now(); }
+// Returns null on bad input so callers can fall back to the list they already hold.
 function sanitizeActiveList(a) {
-  if (!a || safeId(a.id) === null) return { id: newListId(), name: 'My tasks', savedAt: Date.now() };
-  return { id: a.id, name: cleanListName(a.name) || 'My tasks', savedAt: Number(a.savedAt) || Date.now() };
+  if (!a || safeListId(a.id) === null) return null;
+  return { id: a.id, name: cleanListName(a.name) || 'My tasks', savedAt: saneTs(a.savedAt) };
 }
 function sanitizeLists(arr, activeId) {
   if (!Array.isArray(arr)) return [];
   const seen = new Set([activeId]);
   const out = [];
   arr.forEach(l => {
-    if (!l || safeId(l.id) === null || seen.has(l.id) || out.length >= MAX_LISTS - 1) return;
+    if (!l || safeListId(l.id) === null || seen.has(l.id)) return;
+    if (out.length >= MAX_LISTS - 1) { console.warn('sync: dropping parked list over the cap:', l.name); return; }
     seen.add(l.id);
     const cats = sanitizeCategories(l.categories);
     const validCatIds = new Set(cats.map(c => c.id));
     const ts = sanitizeTasks(l.tasks);
     ts.forEach(t => { if (t.categoryId && !validCatIds.has(t.categoryId)) t.categoryId = null; });
     const s = l.stats || {};
-    out.push({ id: l.id, name: cleanListName(l.name) || 'List', savedAt: Number(l.savedAt) || Date.now(),
+    out.push({ id: l.id, name: cleanListName(l.name) || 'List', savedAt: saneTs(l.savedAt),
       tasks: ts, categories: cats, routines: sanitizeRoutines(l.routines), history: sanitizeHistory(l.history),
       stats: { sessionsDone: Number(s.sessionsDone) || 0, minsFocused: Number(s.minsFocused) || 0,
                minsFocusedToday: Number(s.minsFocusedToday) || 0, focusedDay: typeof s.focusedDay === 'string' ? s.focusedDay : '' } });
@@ -6230,7 +6210,7 @@ function startRoutine(rid) {
   var cat = categories.find(function (c) { return c.name.toLowerCase() === r.name.toLowerCase(); });
   if (!cat) {
     cat = { id: 'c_' + Date.now() + '_' + Math.floor(Math.random() * 1e6), name: r.name,
-            color: CAT_COLORS[categories.length % CAT_COLORS.length], order: categories.length, collapsed: false };
+            color: CAT_COLORS[categories.length % CAT_COLORS.length], order: categories.length };
     categories.push(cat);
   }
   var ids = [], gaps = [];
