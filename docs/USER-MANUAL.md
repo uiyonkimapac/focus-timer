@@ -1,6 +1,6 @@
 # Now This — User Manual
 
-*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-06-27.*
+*For the app at **https://uiyonkimapac.github.io/focus-timer/** — updated 2026-09-07.*
 
 **Now This** is an ADHD-first focus app: a Pomodoro timer + task list for **execution**, and a spatial "Mountain Board" map for **planning**. The name is the whole philosophy — *now this, this one thing*. This manual covers everything, desktop and mobile.
 
@@ -57,22 +57,31 @@ The selected task's remaining time drives the countdown; finishing a focus sessi
 | **MIT** | Toggle Most Important Task | The card gains an **amber/gold** accent and bold name; only one star matters — keep it honest |
 | **○ circle** | Complete the task | Moves to Completed with a timestamp |
 | **Task name** | Double-click to rename (or use ✎) | |
+| **Category chip** | Change the category | Colored label with the category name (faint **+ category** if none). Click → inline dropdown; **Esc** cancels. Dragging a task never changes its category |
 | **Time badge** | Quick-set 15/25/30/45/60m | |
 | **🌙** | "Not today" — snooze until tomorrow | The task mists out but stays visible (object permanence!). Auto-returns at midnight. Three snoozes in a row → red **FACE IT!** badge |
 | **▶** | Select this task and start the timer | |
 | **✎ / ✕** | Rename / delete | Delete shows an **Undo** toast |
 
 ### Categories
-- Create them from the category dropdown (10-color picker). Each group header shows a count + total time remaining.
-- **Collapse** a group by clicking its header; **reorder lanes** by dragging the header (⋮⋮ grip).
-- **Rename, recolor, or delete** a category from its **color dot** → the **Edit category** popup. Delete is a deliberate button there (it asks first); a deleted category's tasks move to **Uncategorized** — nothing is lost.
-- **🗂 Manage categories…** (bottom of the category dropdown) lists **every** category — including empty ones that no longer appear in the list — with live task counts. Rename/recolor (✎) or delete (✕) each; the window stays open so you can clean out several stale categories in one visit.
-- Drag a task **onto another group's header** (or onto a task inside it) to move it there.
-- "Uncategorized" stays anchored at the bottom.
+- Create them from the category dropdown in the add row (10-color picker). Every task card wears a colored **category chip** with the name; uncategorized tasks show a faint **+ category** chip.
+- The list is **one flat queue** — no group headers, no lanes. Tasks sit in the order you drag them, whatever their category, so any task can be at the top. (The Map still groups by category; that is the grouped view.)
+- **Change a task's category** by clicking its chip and picking from the inline dropdown. Dragging never re-categorizes — order and category are separate things.
+- **🗂 Manage categories…** (bottom of the category dropdown) lists **every** category with live task counts. Rename/recolor (✎) or delete (✕) each; delete asks first, and a deleted category's tasks become uncategorized — nothing is lost. The window stays open so you can clean out several stale categories in one visit.
+
+### Lists (up to five)
+The dropdown left of the **≡ List / ⛰ Map** toggle always names the list you are in and when it was last saved — you never have to wonder "which list am I in". Open it to:
+- **switch** to another list (each entry shows its saved time);
+- **＋ New list…** — start an empty list (offered while you have fewer than five);
+- **✎ Rename list…** — names must be unique (case doesn't count) and at most 40 characters; leave it blank to cancel;
+- **✕ Delete list…** — shown once you have more than one list. It asks first, then switches you to your most recently saved list. **Undo** puts the deleted list back among your parked lists (it can't if you've since reached the five-list cap).
+
+Each list is its own world: tasks, categories, routines, history, today's stats, and map layout. Nothing is shared between lists. Switching, creating, and deleting are refused while the timer or a Run is going (a short note says *Pause the timer to switch lists*), so the task you are on is never lost. On your first load after the update, everything you already had becomes a list named **My tasks**, unchanged. The Watch mirrors whichever list is active.
 
 ### Toolbar
 | Button | What it does |
 |---|---|
+| **List dropdown** | Switch, create, rename, or delete a list (see **Lists** above) |
 | **≡ List / ⛰ Map** | Switch views (same tasks, two perspectives) |
 | **⊞ Guides** | (Map only) toggle the axis guides |
 | **⛶ Full map** | (Map only) **maximize the board** — hides the timer panel *and* the header/tabs/add-row above it, so the map fills the window. Toggle off to bring them back. |
@@ -99,14 +108,14 @@ Like Routinery: build the routine once, keep it forever. Two ways to make one:
 - **＋ New routine** (top of the Run sheet) opens the **builder** — name the routine, type steps directly (name + minutes), tap the line between steps to set that gap's break, press **Enter** on the last step to add another, drag **⋮⋮** to reorder. Your task list is never touched: a routine is its own thing until you start it.
 - **☆ Save as routine** (bottom-left of the Run sheet) snapshots the current queue — steps, minutes, per-gap breaks, the auto-advance setting — under a name you choose.
 - Saved routines appear as **cards at the top of the Run sheet**: tap one to start it, **✎** to edit it in the builder, **✕** to delete. They sync across devices.
-- Starting a routine **creates its steps as real tasks** (grouped under a category named after the routine), so completions land in history and today's stats like any other task.
+- Starting a routine **creates its steps as real tasks** (tagged with a category named after the routine), so completions land in history and today's stats like any other task.
 - **Exit a run early** and the unfinished steps are tidied off your list automatically (an **Undo** toast brings them back) — the routine template itself is never touched. Finished steps stay in history.
 
 In the tab bar (top-right of the main area):
 | Button | What it does |
 |---|---|
 | **Save Report** | Download a formatted **HTML** report — choose Active / Completed / Stats and a filename |
-| **Reset Data** | Wipe all tasks and history (asks first — Save Report beforehand if in doubt). *On phones it lives at the bottom of the list, not the top bar.* |
+| **Reset Data** | Wipe **every list**, all tasks and history (asks first — Save Report beforehand if in doubt). *On phones it lives at the bottom of the list, not the top bar.* |
 | **☽ / ☀** (in the logo row) | Dark (ink) / light (parchment) theme |
 
 ---
@@ -169,7 +178,7 @@ For a richer, formatted snapshot (active + completed + stats), use **Save Report
 
 ## 6. Sync across devices (optional)
 
-Open **Sync** (the badge at the top of the left panel) → enter the **same sync code** on each device. Tasks, categories, history, and stats sync in realtime. Generate a fresh code with **✨ New** on your first device, then enter that code on the others. Without a code the app is 100% local — no cloud, no account.
+Open **Sync** (the badge at the top of the left panel) → enter the **same sync code** on each device. Tasks, categories, routines, history, stats, and all your lists sync in realtime — including which list is active, so switching lists on one device switches them all. Generate a fresh code with **✨ New** on your first device, then enter that code on the others. Without a code the app is 100% local — no cloud, no account.
 
 ---
 
@@ -207,5 +216,6 @@ Open **Sync** (the badge at the top of the left panel) → enter the **same sync
 | Synced devices disagree | Last write wins; make sure both run the latest version and the same sync code |
 | Lost everything? | If you exported, your **Save Report** HTML (or **Export CSV**) has the data. Reset Data warns before wiping |
 | "Focused" shows 0m | It resets at midnight — it's today's focused time, so a fresh day starts at zero |
+| Can't switch, create, or delete a list | Pause the timer (or leave the Run) first — lists are locked while you're working a task |
 
 *Your data never leaves your device unless you turn on sync (your code, Supabase) — there are no accounts and no analytics.*
